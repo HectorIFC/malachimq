@@ -1,0 +1,3 @@
+%{
+  "jason": {:git, "https://github.com/michalmuskala/jason.git", "926d2ac6cc0271b9a7079b2ec16ae0cf802f7963", [tag: "v1.4.4"]},
+}

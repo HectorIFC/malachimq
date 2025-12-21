@@ -1,0 +1,60 @@
+.PHONY: build run test docker-build docker-run docker-push clean release
+
+APP_NAME = malachimq
+DOCKER_USERNAME ?= hectorcorrea81
+VERSION ?= latest
+
+build:
+	mix deps.get
+	mix compile
+
+run:
+	mix run --no-halt
+
+test:
+	mix test
+
+release:
+	MIX_ENV=prod mix deps.get
+	MIX_ENV=prod mix release
+
+docker-build:
+	docker build -t $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) .
+	docker tag $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) $(DOCKER_USERNAME)/$(APP_NAME):latest
+
+docker-run:
+	docker run -d \
+		--name $(APP_NAME) \
+		-p 4040:4040 \
+		-p 4041:4041 \
+		$(DOCKER_USERNAME)/$(APP_NAME):$(VERSION)
+
+docker-stop:
+	docker stop $(APP_NAME) || true
+	docker rm $(APP_NAME) || true
+
+docker-push:
+	docker push $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION)
+	docker push $(DOCKER_USERNAME)/$(APP_NAME):latest
+
+docker-logs:
+	docker logs -f $(APP_NAME)
+
+compose-up:
+	docker-compose up -d
+
+compose-down:
+	docker-compose down
+
+compose-logs:
+	docker-compose logs -f
+
+compose-producer:
+	docker-compose --profile tools run --rm producer
+
+clean:
+	rm -rf _build deps
+	docker rmi $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) || true
+	docker rmi $(DOCKER_USERNAME)/$(APP_NAME):latest || true
+
+all: build test docker-build

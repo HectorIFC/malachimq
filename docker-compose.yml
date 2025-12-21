@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  malachimq:
+    image: ${DOCKERHUB_USERNAME:-hectorcorrea81}/malachimq:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: malachimq
+    ports:
+      - "4040:4040"
+      - "4041:4041"
+    environment:
+      - MALACHIMQ_TCP_PORT=4040
+      - MALACHIMQ_DASHBOARD_PORT=4041
+      - MALACHIMQ_LOCALE=en_US
+      - MALACHIMQ_ADMIN_PASS=${MALACHIMQ_ADMIN_PASS:-admin123}
+      - MALACHIMQ_PRODUCER_PASS=${MALACHIMQ_PRODUCER_PASS:-producer123}
+      - MALACHIMQ_CONSUMER_PASS=${MALACHIMQ_CONSUMER_PASS:-consumer123}
+      - MALACHIMQ_APP_PASS=${MALACHIMQ_APP_PASS:-app123}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 4040 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  producer:
+    image: node:20-alpine
+    container_name: malachimq-producer
+    working_dir: /app
+    volumes:
+      - ./scripts:/app
+    environment:
+      - MALACHIMQ_HOST=malachimq
+      - MALACHIMQ_PORT=4040
+      - MALACHIMQ_USER=producer
+      - MALACHIMQ_PASS=${MALACHIMQ_PRODUCER_PASS:-producer123}
+      - MALACHIMQ_QUEUE=test
+      - MALACHIMQ_LOCALE=en_US
+    depends_on:
+      malachimq:
+        condition: service_healthy
+    command: ["node", "producer.js", "10"]
+    profiles:
+      - tools
