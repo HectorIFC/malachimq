@@ -1,8 +1,8 @@
 .PHONY: build run test docker-build docker-run docker-push clean release
 
 APP_NAME = malachimq
-DOCKER_USERNAME ?= hectorcorrea81
-VERSION ?= latest
+DOCKER_USERNAME ?= hectorcardoso
+VERSION ?= $(shell grep '@version' mix.exs | head -1 | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
 
 build:
 	mix deps.get

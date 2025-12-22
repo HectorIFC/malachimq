@@ -2,7 +2,7 @@
 
 High-performance message queue system built with Elixir/OTP.
 
-[![Docker Image](https://img.shields.io/docker/v/hectorcorrea81/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcorrea81/malachimq)
+[![Docker Image](https://img.shields.io/docker/v/hectorcardoso/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcardoso/malachimq)
 [![Build Status](https://github.com/HectorIFC/malachimq/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions)
 
 ## 🚀 Quick Start with Docker
@@ -10,14 +10,14 @@ High-performance message queue system built with Elixir/OTP.
 ### Pull and Run
 
 ```bash
-docker pull hectorcorrea81/malachimq:latest
+docker pull hectorcardoso/malachimq:latest
 
 docker run -d \
   --name malachimq \
   -p 4040:4040 \
   -p 4041:4041 \
   -e MALACHIMQ_ADMIN_PASS=your_secure_password \
-  hectorcorrea81/malachimq:latest
+  hectorcardoso/malachimq:latest
 ```
 
 ### Using Docker Compose
@@ -70,7 +70,7 @@ MalachiMQ requires authentication for all producers and consumers.
 ```bash
 docker run -d \
   -e MALACHIMQ_DEFAULT_USERS="user1:pass1:produce,consume;user2:pass2:admin" \
-  hectorcorrea81/malachimq:latest
+  hectorcardoso/malachimq:latest
 ```
 
 Format: `username:password:permission1,permission2;...`
@@ -203,3 +203,13 @@ MIT License
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## 🔖 Versioning
+
+This project uses [SEMVER](https://semver.org/) with automated releases.
+
+- **Patch**: Bug fixes → Add `patch` label or default
+- **Minor**: New features → Add `minor` label or use `feat:` prefix
+- **Major**: Breaking changes → Add `major` label or use `[major]` in title
+
+See [VERSIONING.md](docs/VERSIONING.md) for details.

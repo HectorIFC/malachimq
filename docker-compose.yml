@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   malachimq:
-    image: ${DOCKERHUB_USERNAME:-hectorcorrea81}/malachimq:latest
+    image: ${DOCKERHUB_USERNAME:-hectorcardoso}/malachimq:latest
     build:
       context: .
       dockerfile: Dockerfile
