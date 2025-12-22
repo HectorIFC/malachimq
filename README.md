@@ -3,7 +3,7 @@
 High-performance message queue system built with Elixir/OTP.
 
 [![Docker Image](https://img.shields.io/docker/v/hectorcorrea81/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcorrea81/malachimq)
-[![Build Status](https://github.com/hectorcorrea81/malachimq/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/hectorcorrea81/malachimq/actions)
+[![Build Status](https://github.com/HectorIFC/malachimq/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions)
 
 ## 🚀 Quick Start with Docker
 
@@ -23,7 +23,7 @@ docker run -d \
 ### Using Docker Compose
 
 ```bash
-git clone https://github.com/hectorcorrea81/malachimq.git
+git clone https://github.com/HectorIFC/malachimq.git
 cd malachimq
 docker-compose up -d
 ```

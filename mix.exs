@@ -2,7 +2,7 @@ defmodule MalachiMQ.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/hectorcorrea81/malachimq"
+  @source_url "https://github.com/HectorIFC/malachimq"
 
   def project do
     [
