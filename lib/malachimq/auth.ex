@@ -211,15 +211,10 @@ defmodule MalachiMQ.Auth do
     Logger.info(I18n.t(:default_users_loaded, count: length(default_users)))
   end
 
-  # Uses Argon2 for secure password hashing
-  # Argon2 is a memory-hard password hashing algorithm that is resistant to
-  # GPU-based cracking attacks and provides salt generation automatically
   defp hash_password(password) do
     Argon2.hash_pwd_salt(password)
   end
 
-  # Verifies password against Argon2 hash
-  # Uses constant-time comparison to prevent timing attacks
   defp verify_password(password, stored_hash) do
     Argon2.verify_pass(password, stored_hash)
   end

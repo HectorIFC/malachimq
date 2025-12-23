@@ -14,6 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic changelog generation
 - Versioned Docker tags
 - Versioning documentation
+- TLS/SSL support for TCP server (optional, configurable)
+- Socket abstraction layer for transport-agnostic operations
+- Development certificate generation script
+
+### Security
+- **CRITICAL**: Fixed cleartext transmission of credentials vulnerability
+  - Added optional TLS encryption for TCP connections
+  - Implemented strong cipher suites (TLS 1.2/1.3)
+  - Created certificate-based authentication support
+  - Backward compatible: TLS is optional (can be enabled via config)
+- Fixed XSS vulnerability in dashboard queue name rendering
+- Replaced weak SHA-256 password hashing with Argon2
+
+### Changed
+- BREAKING: Authentication now uses Argon2 instead of SHA-256
+  - Existing password hashes will need to be regenerated
+  - Update auth credentials in production after deployment
 
 ## [0.1.0] - 2025-12-22
 

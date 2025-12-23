@@ -23,6 +23,14 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "🚀 MalachiMQ TCP Server na porta %{port} com %{acceptors} acceptors",
       "en_US" => "🚀 MalachiMQ TCP Server on port %{port} with %{acceptors} acceptors"
     },
+    transport_enabled: %{
+      "pt_BR" => "🔒 Transporte %{transport} habilitado na porta %{port}",
+      "en_US" => "🔒 %{transport} transport enabled on port %{port}"
+    },
+    tls_handshake_failed: %{
+      "pt_BR" => "Falha no handshake TLS: %{reason}",
+      "en_US" => "TLS handshake failed: %{reason}"
+    },
     acceptor_started: %{
       "pt_BR" => "Acceptor #%{id} iniciado",
       "en_US" => "Acceptor #%{id} started"
@@ -149,6 +157,27 @@ defmodule MalachiMQ.I18n do
     permission_denied: %{
       "pt_BR" => "⛔ Permissão negada: '%{username}' -> %{action}",
       "en_US" => "⛔ Permission denied: '%{username}' -> %{action}"
+    },
+    
+    system_info: %{
+      "pt_BR" => "ℹ️  Informações do Sistema MalachiMQ",
+      "en_US" => "ℹ️  MalachiMQ System Info"
+    },
+    system_schedulers: %{
+      "pt_BR" => "   Schedulers: %{schedulers}",
+      "en_US" => "   Schedulers: %{schedulers}"
+    },
+    system_processes: %{
+      "pt_BR" => "   Processos: %{processes}/%{limit}",
+      "en_US" => "   Processes: %{processes}/%{limit}"
+    },
+    system_memory: %{
+      "pt_BR" => "   Memória: %{memory} MB",
+      "en_US" => "   Memory: %{memory} MB"
+    },
+    system_ets_tables: %{
+      "pt_BR" => "   Tabelas ETS: %{tables}/%{limit}",
+      "en_US" => "   ETS Tables: %{tables}/%{limit}"
     }
   }
 

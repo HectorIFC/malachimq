@@ -9,7 +9,11 @@ config :malachimq,
   session_cleanup_interval_ms: String.to_integer(System.get_env("MALACHIMQ_SESSION_CLEANUP_MS") || "60000"),
   auth_timeout_ms: String.to_integer(System.get_env("MALACHIMQ_AUTH_TIMEOUT_MS") || "10000"),
   tcp_recv_timeout: String.to_integer(System.get_env("MALACHIMQ_TCP_RECV_TIMEOUT") || "30000"),
-  gc_interval_ms: String.to_integer(System.get_env("MALACHIMQ_GC_INTERVAL_MS") || "10000")
+  gc_interval_ms: String.to_integer(System.get_env("MALACHIMQ_GC_INTERVAL_MS") || "10000"),
+  enable_tls: System.get_env("MALACHIMQ_ENABLE_TLS") == "true",
+  tls_certfile: System.get_env("MALACHIMQ_TLS_CERTFILE"),
+  tls_keyfile: System.get_env("MALACHIMQ_TLS_KEYFILE"),
+  tls_cacertfile: System.get_env("MALACHIMQ_TLS_CACERTFILE")
 
 default_users_env = System.get_env("MALACHIMQ_DEFAULT_USERS")
 

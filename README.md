@@ -64,6 +64,10 @@ MalachiMQ requires authentication for all producers and consumers.
 | `MALACHIMQ_CONSUMER_PASS` | consumer123 | Consumer password |
 | `MALACHIMQ_APP_PASS` | app123 | App password |
 | `MALACHIMQ_SESSION_TIMEOUT_MS` | 3600000 | Session timeout (1h) |
+| `MALACHIMQ_ENABLE_TLS` | false | Enable TLS encryption |
+| `MALACHIMQ_TLS_CERTFILE` | - | TLS certificate file path |
+| `MALACHIMQ_TLS_KEYFILE` | - | TLS private key file path |
+| `MALACHIMQ_TLS_CACERTFILE` | - | TLS CA certificate (optional) |
 
 ### Custom Users
 
@@ -76,6 +80,66 @@ docker run -d \
 Format: `username:password:permission1,permission2;...`
 
 Permissions: `admin`, `produce`, `consume`
+
+## 🔒 TLS/SSL Encryption
+
+**⚠️ IMPORTANT**: For production deployments, always enable TLS to encrypt credentials and messages.
+
+### Quick Start with TLS
+
+#### 1. Generate Development Certificates
+
+```bash
+./scripts/generate-dev-certs.sh
+```
+
+#### 2. Run with TLS Enabled
+
+```bash
+docker run -d \
+  -p 4040:4040 \
+  -v $(pwd)/priv/cert:/certs \
+  -e MALACHIMQ_ENABLE_TLS=true \
+  -e MALACHIMQ_TLS_CERTFILE=/certs/server.crt \
+  -e MALACHIMQ_TLS_KEYFILE=/certs/server.key \
+  hectorcardoso/malachimq:latest
+```
+
+#### 3. Connect with TLS Client (Node.js)
+
+```javascript
+const tls = require('tls');
+
+const client = tls.connect({
+  host: 'localhost',
+  port: 4040,
+  rejectUnauthorized: false  // For self-signed certs (dev only)
+}, () => {
+  console.log('TLS connected');
+  client.write(JSON.stringify({
+    action: 'auth',
+    username: 'producer',
+    password: 'producer123'
+  }) + '\n');
+});
+```
+
+### Production TLS Setup
+
+For production, use certificates from:
+- **Let's Encrypt** (free, automated)
+- **DigiCert**, **GlobalSign** (commercial CAs)
+- **Internal PKI** (corporate environments)
+
+See [TLS Security Advisory](docs/SECURITY_ADVISORY_TLS.md) for complete documentation.
+
+### TLS Features
+
+- ✅ TLS 1.2 and 1.3 support
+- ✅ Strong cipher suites (ECDHE, AES-GCM)
+- ✅ Perfect Forward Secrecy
+- ✅ Mutual TLS (mTLS) support
+- ✅ Backward compatible (TLS is optional)
 
 ## 📡 Client Example (Node.js)
 

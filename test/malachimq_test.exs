@@ -3,12 +3,10 @@ defmodule MalachiMQTest do
 
   describe "MalachiMQ Application" do
     test "application starts successfully" do
-      # Verify that the application module is defined
       assert Code.ensure_loaded?(MalachiMQ.Application)
     end
 
     test "main modules are available" do
-      # Verify core modules are loaded
       assert Code.ensure_loaded?(MalachiMQ.Queue)
       assert Code.ensure_loaded?(MalachiMQ.Auth)
       assert Code.ensure_loaded?(MalachiMQ.AckManager)
