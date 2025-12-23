@@ -27,7 +27,8 @@ defmodule MalachiMQ.MixProject do
 
   defp deps do
     [
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:argon2_elixir, "~> 4.0"}
     ]
   end
 
