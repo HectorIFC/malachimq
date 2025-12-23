@@ -2,8 +2,9 @@
 
 High-performance message queue system built with Elixir/OTP.
 
+[![CI](https://github.com/HectorIFC/malachimq/actions/workflows/ci.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/ci.yml)
+[![Release](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml)
 [![Docker Image](https://img.shields.io/docker/v/hectorcardoso/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcardoso/malachimq)
-[![Build Status](https://github.com/HectorIFC/malachimq/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions)
 
 ## 🚀 Quick Start with Docker
 
@@ -223,6 +224,42 @@ make compose-down   # Stop docker-compose
 make clean          # Clean build artifacts
 ```
 
+### Code Quality Checks
+
+```bash
+# Format code
+mix format
+
+# Check formatting
+mix format --check-formatted
+
+# Run static analysis
+mix credo --strict
+
+# Check for security issues
+mix deps.audit
+
+# Check for unused dependencies
+mix deps.unlock --check-unused
+```
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- ✅ **Automated Tests** - Run on every commit
+- ✅ **Multiple Elixir/OTP Versions** - Tested on 3 versions
+- ✅ **Code Quality** - Credo, formatting, security checks
+- ✅ **Docker Build** - Verified on every PR
+- ✅ **Automatic Releases** - On merge to main
+
+See [CI/CD Documentation](docs/CI_CD.md) for details.
+make docker-push    # Push to Docker Hub
+make compose-up     # Start with docker-compose
+make compose-down   # Stop docker-compose
+make clean          # Clean build artifacts
+```
+
 ## 🌍 Internationalization (i18n)
 
 MalachiMQ supports **Brazilian Portuguese (pt_BR)** and **American English (en_US)**.
@@ -262,11 +299,63 @@ MIT License
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Please follow these guidelines:
+
+### Before You Start
+
+1. Check existing issues and PRs
+2. Discuss major changes in an issue first
+3. Read [CI/CD Documentation](docs/CI_CD.md)
+
+### Development Process
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feat/amazing-feature`)
+3. **Make** your changes with tests
+4. **Run** quality checks:
+   ```bash
+   mix format
+   mix test
+   mix credo --strict
+   ```
+5. **Commit** using [Conventional Commits](https://www.conventionalcommits.org/):
+   ```bash
+   git commit -m "feat: add amazing feature"
+   ```
+6. **Push** to your fork (`git push origin feat/amazing-feature`)
+7. **Open** a Pull Request
+
+### PR Requirements
+
+- ✅ **Tests** - All new features must include tests
+- ✅ **Documentation** - Update relevant docs
+- ✅ **CI Passing** - All checks must pass
+- ✅ **Conventional Commits** - Follow commit format
+- ✅ **Code Review** - Address review feedback
+
+### Commit Message Format
+
+```
+<type>: <description>
+
+Examples:
+- feat: add TLS support
+- fix: resolve authentication bug
+- docs: update README
+- test: add unit tests for Auth module
+- chore: update dependencies
+```
+
+**Types:**
+- `feat:` - New feature (→ minor version)
+- `fix:` - Bug fix (→ patch version)
+- `docs:` - Documentation
+- `test:` - Tests
+- `refactor:` - Code refactoring
+- `chore:` - Maintenance
+
+**Breaking Changes:**
+- Add `[major]` to title or `BREAKING CHANGE:` in body
 
 ## 🔖 Versioning
 
