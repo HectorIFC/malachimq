@@ -1218,6 +1218,16 @@ defmodule MalachiMQ.Dashboard do
         <div id="queues">Loading...</div>
       </div>
       <script>
+        // HTML escape function to prevent XSS attacks
+        function escapeHtml(unsafe) {
+          return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
         const source = new EventSource('/stream');
         source.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -1226,7 +1236,7 @@ defmodule MalachiMQ.Dashboard do
 
           const queuesHtml = data.queues.map(q =>
             `<div style="padding: 10px; border-left: 3px solid #00d9ff; margin: 10px 0;">
-              <strong>${q.queue}</strong><br>
+              <strong>${escapeHtml(q.queue)}</strong><br>
               <span style="color: #888;">Consumers:</span> ${q.queue_stats.consumers} |
               <span style="color: #00ff88;">✓ Acked:</span> ${q.acked || 0} |
               <span style="color: #ff6b6b;">✗ Nacked:</span> ${q.nacked || 0} |
