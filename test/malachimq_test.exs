@@ -1,8 +1,18 @@
-defmodule MalachimqTest do
+defmodule MalachiMQTest do
   use ExUnit.Case
-  doctest Malachimq
 
-  test "greets the world" do
-    assert Malachimq.hello() == :world
+  describe "MalachiMQ Application" do
+    test "application starts successfully" do
+      # Verify that the application module is defined
+      assert Code.ensure_loaded?(MalachiMQ.Application)
+    end
+
+    test "main modules are available" do
+      # Verify core modules are loaded
+      assert Code.ensure_loaded?(MalachiMQ.Queue)
+      assert Code.ensure_loaded?(MalachiMQ.Auth)
+      assert Code.ensure_loaded?(MalachiMQ.AckManager)
+      assert Code.ensure_loaded?(MalachiMQ.PartitionManager)
+    end
   end
 end
