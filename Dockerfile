@@ -1,8 +1,10 @@
-FROM elixir:1.16-otp-26-alpine AS builder
+FROM elixir:1.16-otp-26-slim AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache git build-base
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV MIX_ENV=prod
 
@@ -18,14 +20,27 @@ COPY lib lib
 RUN mix compile && \
     mix release
 
-FROM alpine:3.19 AS runner
+FROM debian:bookworm-slim AS runner
 
-RUN apk add --no-cache libstdc++ ncurses-libs openssl
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libstdc++6 \
+        libncurses6 \
+        openssl \
+        ca-certificates \
+        locales && \
+    rm -rf /var/lib/apt/lists/* && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 WORKDIR /app
 
-RUN addgroup -g 1000 malachimq && \
-    adduser -u 1000 -G malachimq -s /bin/sh -D malachimq
+RUN groupadd -g 1000 malachimq && \
+    useradd -u 1000 -g malachimq -s /bin/bash -m malachimq
 
 COPY --from=builder --chown=malachimq:malachimq /app/_build/prod/rel/malachimq ./
 

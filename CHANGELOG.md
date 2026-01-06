@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Socket abstraction layer for transport-agnostic operations
 - Development certificate generation script
 
+### Changed
+- **Docker**: Migrated from Alpine to Debian Bookworm slim base image
+  - Switched from musl libc to glibc for better production stability
+  - Improved compatibility with native extensions and NIFs
+  - Added proper locale support (en_US.UTF-8)
+  - Better debugging capabilities in production
+
 ### Security
 - **CRITICAL**: Fixed cleartext transmission of credentials vulnerability
   - Added optional TLS encryption for TCP connections
