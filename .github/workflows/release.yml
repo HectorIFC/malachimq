@@ -166,6 +166,16 @@ jobs:
         with:
           ref: v${{ needs.release.outputs.new_version }}
 
+      - name: Extract version components
+        id: version
+        run: |
+          VERSION="${{ needs.release.outputs.new_version }}"
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          echo "MAJOR=$MAJOR" >> $GITHUB_OUTPUT
+          echo "MINOR=$MINOR" >> $GITHUB_OUTPUT
+          echo "MAJOR_MINOR=$MAJOR.$MINOR" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -182,7 +192,17 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/malachimq:${{ needs.release.outputs.new_version }}
+            ${{ secrets.DOCKER_USERNAME }}/malachimq:${{ steps.version.outputs.MAJOR_MINOR }}
+            ${{ secrets.DOCKER_USERNAME }}/malachimq:${{ steps.version.outputs.MAJOR }}
             ${{ secrets.DOCKER_USERNAME }}/malachimq:latest
+            ${{ secrets.DOCKER_USERNAME }}/malachimq:bookworm
+          labels: |
+            org.opencontainers.image.title=MalachiMQ
+            org.opencontainers.image.description=High-performance message queue built with Elixir/OTP
+            org.opencontainers.image.version=${{ needs.release.outputs.new_version }}
+            org.opencontainers.image.vendor=HectorIFC
+            org.opencontainers.image.source=https://github.com/HectorIFC/malachimq
+            org.opencontainers.image.licenses=MIT
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/malachimq:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/malachimq:buildcache,mode=max
 
@@ -192,5 +212,5 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           repository: ${{ secrets.DOCKER_USERNAME }}/malachimq
-          short-description: "High-performance message queue built with Elixir/OTP"
-          readme-filepath: ./README.md
+          short-description: "🚀 High-performance message queue built with Elixir/OTP - TLS, Dashboard, Auto-partitioning"
+          readme-filepath: ./DOCKER_README.md
