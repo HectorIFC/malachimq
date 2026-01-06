@@ -1,0 +1,10 @@
+{
+  "coverage_options": {
+    "treat_no_relevant_lines_as_covered": true,
+    "minimum_coverage": 15,
+    "output_dir": "cover"
+  },
+  "skip_files": [
+    "lib/malachimq/benchmark.ex"
+  ]
+}

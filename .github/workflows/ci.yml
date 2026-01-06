@@ -79,7 +79,7 @@ jobs:
         run: mix test --trace
       
       - name: 📊 Generate coverage report
-        run: mix test --cover
+        run: mix coveralls.json
         if: matrix.coverage
       
       - name: 📈 Upload coverage to Codecov
