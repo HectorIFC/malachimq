@@ -14,7 +14,8 @@ defmodule MalachiMQ.MixProject do
       releases: releases(),
       description: description(),
       package: package(),
-      source_url: @source_url
+      source_url: @source_url,
+      test_coverage: [threshold: 15]
     ]
   end
 
