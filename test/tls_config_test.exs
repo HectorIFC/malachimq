@@ -5,6 +5,9 @@ defmodule MalachiMQ.TLSConfigTest do
 
   describe "TLS Configuration" do
     test "socket helper handles gen_tcp operations" do
+      # Ensure module is loaded before checking exported functions
+      {:module, _} = Code.ensure_loaded(SocketHelper)
+
       assert function_exported?(SocketHelper, :socket_send, 3)
       assert function_exported?(SocketHelper, :socket_recv, 4)
       assert function_exported?(SocketHelper, :socket_close, 2)
