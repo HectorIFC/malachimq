@@ -164,8 +164,11 @@ jobs:
           # Check if container is running
           docker ps | grep malachimq-test
           
-          # Check if ports are listening
-          docker exec malachimq-test ps aux
+          # Check if the application process is running (works without procps on slim images)
+          docker exec malachimq-test cat /proc/1/cmdline | tr '\0' ' '
+          
+          # Check if dashboard is responding on port 4041
+          curl -sf http://localhost:4041/metrics || exit 1
           
           # Stop container
           docker stop malachimq-test
