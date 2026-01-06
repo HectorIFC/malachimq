@@ -9,7 +9,7 @@ defmodule MalachiMQ.TCPAcceptor do
 
   @impl true
   def init({port, opts, id, transport}) do
-    listen_result = 
+    listen_result =
       case transport do
         :ssl -> :ssl.listen(port, opts)
         :gen_tcp -> :gen_tcp.listen(port, opts)
@@ -20,7 +20,7 @@ defmodule MalachiMQ.TCPAcceptor do
         Logger.info(I18n.t(:acceptor_started, id: id))
         send(self(), :accept)
         {:ok, %{socket: socket, id: id, connections: 0, idle_count: 0, transport: transport}}
-      
+
       {:error, reason} ->
         {:stop, reason}
     end
@@ -28,7 +28,7 @@ defmodule MalachiMQ.TCPAcceptor do
 
   @impl true
   def handle_info(:accept, %{socket: socket, idle_count: idle_count, transport: transport} = state) do
-    timeout = min(100 + (idle_count * 50), 30000)
+    timeout = min(100 + idle_count * 50, 30000)
 
     accept_result =
       case transport do
@@ -38,10 +38,12 @@ defmodule MalachiMQ.TCPAcceptor do
 
     case accept_result do
       {:ok, client} ->
-        client_socket = 
+        client_socket =
           if transport == :ssl do
             case :ssl.handshake(client, timeout) do
-              {:ok, tls_socket} -> tls_socket
+              {:ok, tls_socket} ->
+                tls_socket
+
               {:error, reason} ->
                 Logger.warning(I18n.t(:tls_handshake_failed, reason: inspect(reason)))
                 :ssl.close(client)
@@ -77,6 +79,7 @@ defmodule MalachiMQ.TCPAcceptor do
 
       {:error, reason} ->
         send_error(socket, reason, transport)
+
         case transport do
           :ssl -> :ssl.close(socket)
           :gen_tcp -> :gen_tcp.close(socket)

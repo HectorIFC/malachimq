@@ -33,7 +33,7 @@ defmodule MalachiMQ.TCPAcceptorPool do
       backlog: backlog
     ]
 
-    {transport, opts} = 
+    {transport, opts} =
       if enable_tls do
         tls_opts = get_tls_options()
         {:ssl, base_opts ++ tls_opts}
@@ -41,7 +41,7 @@ defmodule MalachiMQ.TCPAcceptorPool do
         {:gen_tcp, base_opts}
       end
 
-    listen_result = 
+    listen_result =
       case transport do
         :ssl -> :ssl.listen(port, opts)
         :gen_tcp -> :gen_tcp.listen(port, opts)

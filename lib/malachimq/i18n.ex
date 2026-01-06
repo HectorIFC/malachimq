@@ -18,7 +18,6 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "✅ PartitionManager: %{partitions} partições (%{schedulers} schedulers × %{multiplier})",
       "en_US" => "✅ PartitionManager: %{partitions} partitions (%{schedulers} schedulers × %{multiplier})"
     },
-
     tcp_server_started: %{
       "pt_BR" => "🚀 MalachiMQ TCP Server na porta %{port} com %{acceptors} acceptors",
       "en_US" => "🚀 MalachiMQ TCP Server on port %{port} with %{acceptors} acceptors"
@@ -39,7 +38,6 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "Erro no accept: %{reason}",
       "en_US" => "Accept error: %{reason}"
     },
-
     creating_consumers: %{
       "pt_BR" => "Criando %{count} consumidores...",
       "en_US" => "Creating %{count} consumers..."
@@ -76,22 +74,18 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "   Taxa: %{rate} msgs/segundo",
       "en_US" => "   Rate: %{rate} msgs/second"
     },
-
     processing_error: %{
       "pt_BR" => "Erro ao processar: %{error}",
       "en_US" => "Error processing: %{error}"
     },
-
     metrics_started: %{
       "pt_BR" => "✅ Sistema de métricas iniciado",
       "en_US" => "✅ Metrics system started"
     },
-
     dashboard_started: %{
       "pt_BR" => "🌐 MalachiMQ Dashboard rodando em http://localhost:%{port}",
       "en_US" => "🌐 MalachiMQ Dashboard running at http://localhost:%{port}"
     },
-
     ack_manager_started: %{
       "pt_BR" => "✅ AckManager iniciado (timeout: %{timeout}ms)",
       "en_US" => "✅ AckManager started (timeout: %{timeout}ms)"
@@ -108,12 +102,10 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "Mensagem %{id} falhou após %{max} tentativas - movendo para DLQ",
       "en_US" => "Message %{id} failed after %{max} attempts - moving to DLQ"
     },
-
     processed_message: %{
       "pt_BR" => "Mensagem processada %{id}",
       "en_US" => "Processed message %{id}"
     },
-
     auth_started: %{
       "pt_BR" => "✅ Sistema de autenticação iniciado",
       "en_US" => "✅ Authentication system started"
@@ -158,7 +150,6 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "⛔ Permissão negada: '%{username}' -> %{action}",
       "en_US" => "⛔ Permission denied: '%{username}' -> %{action}"
     },
-    
     system_info: %{
       "pt_BR" => "ℹ️  Informações do Sistema MalachiMQ",
       "en_US" => "ℹ️  MalachiMQ System Info"

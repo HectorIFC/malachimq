@@ -1,7 +1,7 @@
 defmodule MalachiMQ.Application do
   @moduledoc """
   Main application supervisor for MalachiMQ.
-  
+
   Coordinates all core services including:
   - Queue management and partitioning
   - TCP/TLS server for client connections
@@ -23,24 +23,14 @@ defmodule MalachiMQ.Application do
     :erlang.system_flag(:schedulers_online, schedulers_to_use)
 
     children = [
-      {Registry,
-       keys: :unique, name: MalachiMQ.QueueRegistry, partitions: System.schedulers_online()},
-
-      {DynamicSupervisor,
-       name: MalachiMQ.QueueSupervisor, strategy: :one_for_one, max_children: 100_000},
-
+      {Registry, keys: :unique, name: MalachiMQ.QueueRegistry, partitions: System.schedulers_online()},
+      {DynamicSupervisor, name: MalachiMQ.QueueSupervisor, strategy: :one_for_one, max_children: 100_000},
       {Task.Supervisor, name: MalachiMQ.TaskSupervisor, max_children: 10_000},
-
       MalachiMQ.PartitionManager,
-
       MalachiMQ.Metrics,
-
       MalachiMQ.Auth,
-
       MalachiMQ.AckManager,
-
       {MalachiMQ.TCPAcceptorPool, port},
-
       {MalachiMQ.Dashboard, dashboard_port}
     ]
 

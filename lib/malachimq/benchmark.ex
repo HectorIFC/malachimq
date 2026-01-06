@@ -80,13 +80,13 @@ defmodule MalachiMQ.Benchmark do
       ets_tables: length(:ets.all()),
       ets_limit: :erlang.system_info(:ets_limit)
     }
-    
+
     Logger.info(I18n.t(:system_info))
     Logger.info(I18n.t(:system_schedulers, schedulers: info.schedulers))
     Logger.info(I18n.t(:system_processes, processes: info.processes, limit: info.process_limit))
     Logger.info(I18n.t(:system_memory, memory: Float.round(info.memory_mb, 2)))
     Logger.info(I18n.t(:system_ets_tables, tables: info.ets_tables, limit: info.ets_limit))
-    
+
     info
   end
 end

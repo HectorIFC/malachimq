@@ -41,7 +41,7 @@ defmodule MalachiMQ.Security.XSSTest do
   describe "Queue Name Validation" do
     test "queue names should have reasonable length limits" do
       max_length = 256
-      
+
       long_name = String.duplicate("a", max_length + 1)
       assert String.length(long_name) > max_length
     end
@@ -58,9 +58,9 @@ defmodule MalachiMQ.Security.XSSTest do
       ]
 
       malicious_queue = "<script>alert('xss')</script>"
-      
+
       for pattern <- dangerous_patterns do
-        if Regex.match?(pattern, malicious_queue) do\
+        if Regex.match?(pattern, malicious_queue) do
           assert true
         end
       end
@@ -79,6 +79,7 @@ defmodule MalachiMQ.Security.XSSTest do
         "base-uri 'self'",
         "form-action 'self'"
       ]
+
       assert length(recommended_csp) > 0
     end
   end

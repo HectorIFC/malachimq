@@ -205,9 +205,7 @@ defmodule MalachiMQ.AckManager do
       :ets.delete(@pending_table, message_id)
 
       if entry.attempts < max_retries do
-        Logger.warning(
-          I18n.t(:message_expired_retry, id: message_id, attempt: entry.attempts, max: max_retries)
-        )
+        Logger.warning(I18n.t(:message_expired_retry, id: message_id, attempt: entry.attempts, max: max_retries))
 
         MalachiMQ.Queue.enqueue(
           entry.queue_name,
@@ -217,9 +215,7 @@ defmodule MalachiMQ.AckManager do
 
         MalachiMQ.Metrics.increment_retried(entry.queue_name)
       else
-        Logger.error(
-          I18n.t(:message_failed_dlq, id: message_id, max: max_retries)
-        )
+        Logger.error(I18n.t(:message_failed_dlq, id: message_id, max: max_retries))
 
         MalachiMQ.Metrics.increment_dead_lettered(entry.queue_name)
       end
