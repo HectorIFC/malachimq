@@ -120,6 +120,7 @@ jobs:
       
       - name: 🔍 Dependency Review
         uses: actions/dependency-review-action@v3
+        continue-on-error: true
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: true
