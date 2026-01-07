@@ -50,12 +50,18 @@ class MalachiMQClient {
     this.password = options.password || CONFIG.password;
     this.client = null;
     this.token = null;
+    this.buffer = '';
+    this.pendingResolve = null;
+    this.pendingReject = null;
+    this.pendingTimeout = null;
   }
 
   async connect() {
     return new Promise((resolve, reject) => {
       this.client = net.createConnection(this.port, this.host, async () => {
         try {
+          // Set up persistent data handler
+          this.client.on('data', (data) => this._handleData(data));
           await this._authenticate();
           resolve(this);
         } catch (err) {
@@ -65,9 +71,50 @@ class MalachiMQClient {
       });
 
       this.client.on('error', (err) => {
+        if (this.pendingReject) {
+          this.pendingReject(err);
+          this._clearPending();
+        }
         reject(err);
       });
     });
+  }
+
+  _handleData(data) {
+    this.buffer += data.toString();
+    this._processBuffer();
+  }
+
+  _processBuffer() {
+    while (this.buffer.includes('\n') && this.pendingResolve) {
+      const newlineIndex = this.buffer.indexOf('\n');
+      const line = this.buffer.slice(0, newlineIndex).trim();
+      this.buffer = this.buffer.slice(newlineIndex + 1);
+
+      if (!line) continue;
+
+      try {
+        const parsed = JSON.parse(line);
+        const resolve = this.pendingResolve;
+        this._clearPending();
+        resolve(parsed);
+        return; // Only process one response per pending request
+      } catch (e) {
+        const resolve = this.pendingResolve;
+        this._clearPending();
+        resolve({ raw: line });
+        return;
+      }
+    }
+  }
+
+  _clearPending() {
+    if (this.pendingTimeout) {
+      clearTimeout(this.pendingTimeout);
+      this.pendingTimeout = null;
+    }
+    this.pendingResolve = null;
+    this.pendingReject = null;
   }
 
   _authenticate() {
@@ -78,37 +125,22 @@ class MalachiMQClient {
         password: this.password,
       }) + '\n';
 
-      let response = '';
-      let timeoutId = null;
-
-      const onData = (data) => {
-        response += data.toString();
-        if (response.includes('\n')) {
-          clearTimeout(timeoutId);
-          this.client.removeListener('data', onData);
-          try {
-            const parsed = JSON.parse(response.trim());
-            if (parsed.s === 'ok' && parsed.token) {
-              this.token = parsed.token;
-              resolve(parsed);
-            } else {
-              reject(new Error(t('auth_failed_error') || 'Authentication failed'));
-            }
-          } catch (e) {
-            reject(new Error('Invalid auth response'));
-          }
+      this.pendingResolve = (parsed) => {
+        if (parsed.s === 'ok' && parsed.token) {
+          this.token = parsed.token;
+          resolve(parsed);
+        } else {
+          reject(new Error(t('auth_failed_error') || 'Authentication failed'));
         }
       };
+      this.pendingReject = reject;
 
-      this.client.on('data', onData);
-      this.client.write(authMsg);
-
-      timeoutId = setTimeout(() => {
-        if (this.client) {
-          this.client.removeListener('data', onData);
-        }
+      this.pendingTimeout = setTimeout(() => {
+        this._clearPending();
         reject(new Error(t('timeout_error') || 'Authentication timeout'));
       }, 5000);
+
+      this.client.write(authMsg);
     });
   }
 
@@ -125,34 +157,18 @@ class MalachiMQClient {
         headers: headers,
       }) + '\n';
 
-      let response = '';
-      let timeoutId = null;
+      this.pendingResolve = resolve;
+      this.pendingReject = reject;
 
-      const onData = (data) => {
-        response += data.toString();
-        if (response.includes('\n')) {
-          clearTimeout(timeoutId);
-          if (this.client) {
-            this.client.removeListener('data', onData);
-          }
-          try {
-            const parsed = JSON.parse(response.trim());
-            resolve(parsed);
-          } catch (e) {
-            resolve({ raw: response.trim() });
-          }
-        }
-      };
-
-      this.client.on('data', onData);
-      this.client.write(message);
-
-      timeoutId = setTimeout(() => {
-        if (this.client) {
-          this.client.removeListener('data', onData);
-        }
+      this.pendingTimeout = setTimeout(() => {
+        this._clearPending();
         reject(new Error(t('timeout_error') || 'Timeout'));
       }, 5000);
+
+      this.client.write(message);
+
+      // Check if we already have data in buffer
+      this._processBuffer();
     });
   }
 
