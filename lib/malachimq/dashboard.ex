@@ -71,6 +71,8 @@ defmodule MalachiMQ.Dashboard do
   defp handle_route(socket, %{method: :GET, path: "/"}), do: serve_html(socket)
   defp handle_route(socket, %{method: :GET, path: "/metrics"}), do: serve_metrics(socket)
   defp handle_route(socket, %{method: :GET, path: "/stream"}), do: serve_sse(socket)
+  defp handle_route(socket, %{method: :GET, path: "/producers"}), do: serve_producers(socket)
+  defp handle_route(socket, %{method: :GET, path: "/consumers"}), do: serve_consumers(socket)
   defp handle_route(socket, _), do: serve_404(socket)
 
   defp serve_html(socket) do
@@ -95,6 +97,40 @@ defmodule MalachiMQ.Dashboard do
     }
 
     json = Jason.encode!(metrics)
+
+    response = """
+    HTTP/1.1 200 OK\r
+    Content-Type: application/json\r
+    Access-Control-Allow-Origin: *\r
+    Content-Length: #{byte_size(json)}\r
+    \r
+    #{json}
+    """
+
+    :gen_tcp.send(socket, response)
+    :gen_tcp.close(socket)
+  end
+
+  defp serve_producers(socket) do
+    producers = MalachiMQ.ConnectionRegistry.list_producers()
+    json = Jason.encode!(%{producers: producers, total: length(producers)})
+
+    response = """
+    HTTP/1.1 200 OK\r
+    Content-Type: application/json\r
+    Access-Control-Allow-Origin: *\r
+    Content-Length: #{byte_size(json)}\r
+    \r
+    #{json}
+    """
+
+    :gen_tcp.send(socket, response)
+    :gen_tcp.close(socket)
+  end
+
+  defp serve_consumers(socket) do
+    consumers = MalachiMQ.ConnectionRegistry.list_consumers()
+    json = Jason.encode!(%{consumers: consumers, total: length(consumers)})
 
     response = """
     HTTP/1.1 200 OK\r
@@ -175,6 +211,7 @@ defmodule MalachiMQ.Dashboard do
           padding: 20px;
         }
         h1 { color: #00d9ff; margin-bottom: 20px; }
+        h2 { color: #00d9ff; margin-bottom: 15px; font-size: 1.2em; }
         .card {
           background: #1a1f3a;
           border: 1px solid #2a3f5f;
@@ -184,6 +221,67 @@ defmodule MalachiMQ.Dashboard do
         }
         .metric { display: flex; justify-content: space-between; padding: 8px 0; }
         .metric-value { color: #00ff88; font-family: monospace; }
+        .grid-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 20px;
+          margin-bottom: 20px;
+        }
+        .connection-list {
+          max-height: 400px;
+          overflow-y: auto;
+          margin-top: 10px;
+        }
+        .connection-item {
+          background: #0f1428;
+          border-left: 3px solid #00d9ff;
+          padding: 10px;
+          margin-bottom: 8px;
+          border-radius: 4px;
+          font-size: 0.9em;
+        }
+        .connection-item .ip {
+          color: #00ff88;
+          font-family: monospace;
+          font-weight: bold;
+        }
+        .connection-item .time {
+          color: #888;
+          font-size: 0.85em;
+        }
+        .pagination {
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          margin-top: 15px;
+        }
+        .pagination button {
+          background: #2a3f5f;
+          border: 1px solid #3a4f6f;
+          color: #e0e0e0;
+          padding: 8px 15px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 0.9em;
+        }
+        .pagination button:hover:not(:disabled) {
+          background: #3a4f6f;
+        }
+        .pagination button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .pagination .page-info {
+          display: flex;
+          align-items: center;
+          color: #888;
+        }
+        .empty-state {
+          text-align: center;
+          color: #666;
+          padding: 30px;
+          font-style: italic;
+        }
       </style>
     </head>
     <body>
@@ -199,6 +297,33 @@ defmodule MalachiMQ.Dashboard do
           <span class="metric-value" id="memory">-</span>
         </div>
       </div>
+
+      <div class="grid-container">
+        <div class="card">
+          <h2>📤 Producer List (<span id="producer-total">0</span>)</h2>
+          <div class="connection-list" id="producer-list">
+            <div class="empty-state">Loading...</div>
+          </div>
+          <div class="pagination">
+            <button id="producer-prev" onclick="changePage('producer', -1)">← Prev</button>
+            <span class="page-info" id="producer-page-info">Page 1</span>
+            <button id="producer-next" onclick="changePage('producer', 1)">Next →</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>📥 Consumer List (<span id="consumer-total">0</span>)</h2>
+          <div class="connection-list" id="consumer-list">
+            <div class="empty-state">Loading...</div>
+          </div>
+          <div class="pagination">
+            <button id="consumer-prev" onclick="changePage('consumer', -1)">← Prev</button>
+            <span class="page-info" id="consumer-page-info">Page 1</span>
+            <button id="consumer-next" onclick="changePage('consumer', 1)">Next →</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <h2>Queues</h2>
         <div id="queues">Loading...</div>
@@ -212,6 +337,97 @@ defmodule MalachiMQ.Dashboard do
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+        }
+
+        // Pagination state
+        const state = {
+          producer: { page: 1, perPage: 10, data: [] },
+          consumer: { page: 1, perPage: 10, data: [] }
+        };
+
+        function formatTime(timestamp) {
+          const now = Date.now();
+          const diff = now - timestamp;
+          const seconds = Math.floor(diff / 1000);
+          const minutes = Math.floor(seconds / 60);
+          const hours = Math.floor(minutes / 60);
+          const days = Math.floor(hours / 24);
+
+          if (days > 0) return `${days}d ago`;
+          if (hours > 0) return `${hours}h ago`;
+          if (minutes > 0) return `${minutes}m ago`;
+          return `${seconds}s ago`;
+        }
+
+        function renderList(type) {
+          const data = state[type].data;
+          const page = state[type].page;
+          const perPage = state[type].perPage;
+          const start = (page - 1) * perPage;
+          const end = start + perPage;
+          const pageData = data.slice(start, end);
+          const totalPages = Math.ceil(data.length / perPage);
+
+          const listEl = document.getElementById(`${type}-list`);
+          const totalEl = document.getElementById(`${type}-total`);
+          const pageInfoEl = document.getElementById(`${type}-page-info`);
+          const prevBtn = document.getElementById(`${type}-prev`);
+          const nextBtn = document.getElementById(`${type}-next`);
+
+          totalEl.textContent = data.length;
+
+          if (data.length === 0) {
+            listEl.innerHTML = '<div class="empty-state">No ' + type + 's connected</div>';
+            pageInfoEl.textContent = 'Page 0 of 0';
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+            return;
+          }
+
+          const html = pageData.map(item => {
+            const time = formatTime(item.connected_at);
+            return `
+              <div class="connection-item">
+                <div class="ip">${escapeHtml(item.ip)}</div>
+                <div class="time">Connected ${time}</div>
+              </div>
+            `;
+          }).join('');
+
+          listEl.innerHTML = html;
+          pageInfoEl.textContent = `Page ${page} of ${totalPages}`;
+          prevBtn.disabled = page <= 1;
+          nextBtn.disabled = page >= totalPages;
+        }
+
+        function changePage(type, direction) {
+          const totalPages = Math.ceil(state[type].data.length / state[type].perPage);
+          const newPage = state[type].page + direction;
+          
+          if (newPage >= 1 && newPage <= totalPages) {
+            state[type].page = newPage;
+            renderList(type);
+          }
+        }
+
+        async function updateConnections() {
+          try {
+            const [producerRes, consumerRes] = await Promise.all([
+              fetch('/producers'),
+              fetch('/consumers')
+            ]);
+
+            const producerData = await producerRes.json();
+            const consumerData = await consumerRes.json();
+
+            state.producer.data = producerData.producers;
+            state.consumer.data = consumerData.consumers;
+
+            renderList('producer');
+            renderList('consumer');
+          } catch (err) {
+            console.error('Failed to update connections:', err);
+          }
         }
 
         const source = new EventSource('/stream');
@@ -238,6 +454,10 @@ defmodule MalachiMQ.Dashboard do
 
           document.getElementById('queues').innerHTML = queuesHtml || 'No queues';
         };
+
+        // Initial load and periodic updates for connections
+        updateConnections();
+        setInterval(updateConnections, 2000);
       </script>
     </body>
     </html>

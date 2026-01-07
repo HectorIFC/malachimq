@@ -263,6 +263,7 @@ defmodule MalachiMQ.TCPAcceptor do
         if MalachiMQ.Auth.has_permission?(session.permissions, :produce) do
           h = Map.get(msg, "headers", %{})
           MalachiMQ.Queue.enqueue(q, p, h)
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :producer)
           send_data(socket, ~s({"s":"ok"}\n), transport)
           :ok
         else
@@ -274,6 +275,7 @@ defmodule MalachiMQ.TCPAcceptor do
       {:ok, %{"action" => "subscribe", "queue_name" => q}} ->
         if MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
           MalachiMQ.Queue.subscribe(q, self())
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :consumer)
           send_data(socket, ~s({"s":"ok"}\n), transport)
           :subscribed
         else
@@ -286,6 +288,7 @@ defmodule MalachiMQ.TCPAcceptor do
         if MalachiMQ.Auth.has_permission?(session.permissions, :produce) do
           h = Map.get(msg, "headers", %{})
           MalachiMQ.Queue.enqueue(q, p, h)
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :producer)
           send_data(socket, ~s({"s":"ok"}\n), transport)
           :ok
         else

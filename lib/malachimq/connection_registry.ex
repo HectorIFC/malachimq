@@ -17,9 +17,23 @@ defmodule MalachiMQ.ConnectionRegistry do
   Register a client connection with its socket and transport.
   """
   def register(pid, socket, transport) do
-    :ets.insert(@table, {pid, socket, transport, System.monotonic_time(:millisecond)})
+    ip = get_peer_address(socket, transport)
+    :ets.insert(@table, {pid, socket, transport, System.monotonic_time(:millisecond), ip, :unknown})
     Process.monitor(pid)
     :ok
+  end
+
+  @doc """
+  Update connection type (producer or consumer).
+  """
+  def set_connection_type(pid, type) when type in [:producer, :consumer] do
+    case :ets.lookup(@table, pid) do
+      [{^pid, socket, transport, connected_at, ip, _old_type}] ->
+        :ets.insert(@table, {pid, socket, transport, connected_at, ip, type})
+        :ok
+      [] ->
+        {:error, :not_found}
+    end
   end
 
   @doc """
@@ -38,6 +52,38 @@ defmodule MalachiMQ.ConnectionRegistry do
   end
 
   @doc """
+  Get list of producers with their IPs.
+  """
+  def list_producers do
+    :ets.tab2list(@table)
+    |> Enum.filter(fn {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :producer end)
+    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type} ->
+      %{
+        pid: inspect(pid),
+        ip: ip,
+        connected_at: connected_at
+      }
+    end)
+    |> Enum.sort_by(& &1.connected_at, :desc)
+  end
+
+  @doc """
+  Get list of consumers with their IPs.
+  """
+  def list_consumers do
+    :ets.tab2list(@table)
+    |> Enum.filter(fn {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :consumer end)
+    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type} ->
+      %{
+        pid: inspect(pid),
+        ip: ip,
+        connected_at: connected_at
+      }
+    end)
+    |> Enum.sort_by(& &1.connected_at, :desc)
+  end
+
+  @doc """
   Close all active connections gracefully.
   Called during application shutdown.
   """
@@ -45,7 +91,7 @@ defmodule MalachiMQ.ConnectionRegistry do
     connections = :ets.tab2list(@table)
     Logger.info(I18n.t(:closing_connections, count: length(connections)))
 
-    for {pid, socket, transport, _connected_at} <- connections do
+    for {pid, socket, transport, _connected_at, _ip, _type} <- connections do
       # Send shutdown notification to client
       try do
         shutdown_msg = Jason.encode!(%{"shutdown" => true, "reason" => "server_restart"})
@@ -102,4 +148,26 @@ defmodule MalachiMQ.ConnectionRegistry do
   def handle_info(_msg, state) do
     {:noreply, state}
   end
+
+  # Private helper functions
+
+  defp get_peer_address(socket, transport) do
+    case transport do
+      :ssl ->
+        case :ssl.peername(socket) do
+          {:ok, {address, _port}} -> format_ip(address)
+          {:error, _} -> "unknown"
+        end
+      :gen_tcp ->
+        case :inet.peername(socket) do
+          {:ok, {address, _port}} -> format_ip(address)
+          {:error, _} -> "unknown"
+        end
+    end
+  end
+
+  defp format_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp format_ip({a, b, c, d, e, f, g, h}),
+    do: "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
+  defp format_ip(_), do: "unknown"
 end
