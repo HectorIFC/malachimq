@@ -90,18 +90,19 @@ defmodule MalachiMQ.Dashboard do
 
   defp serve_metrics(socket) do
     queue_metrics = MalachiMQ.Metrics.get_all_metrics()
-    
+
     # Enrich each queue with producer/consumer IPs
-    enriched_queues = Enum.map(queue_metrics, fn queue ->
-      producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue.queue)
-      consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue.queue)
-      
-      Map.merge(queue, %{
-        producer_ips: producers,
-        consumer_ips: consumers
-      })
-    end)
-    
+    enriched_queues =
+      Enum.map(queue_metrics, fn queue ->
+        producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue.queue)
+        consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue.queue)
+
+        Map.merge(queue, %{
+          producer_ips: producers,
+          consumer_ips: consumers
+        })
+      end)
+
     metrics = %{
       queues: enriched_queues,
       system: MalachiMQ.Metrics.get_system_metrics()
@@ -140,18 +141,19 @@ defmodule MalachiMQ.Dashboard do
 
   defp stream_metrics(socket) do
     queue_metrics = MalachiMQ.Metrics.get_all_metrics()
-    
+
     # Enrich each queue with producer/consumer IPs
-    enriched_queues = Enum.map(queue_metrics, fn queue ->
-      producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue.queue)
-      consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue.queue)
-      
-      Map.merge(queue, %{
-        producer_ips: producers,
-        consumer_ips: consumers
-      })
-    end)
-    
+    enriched_queues =
+      Enum.map(queue_metrics, fn queue ->
+        producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue.queue)
+        consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue.queue)
+
+        Map.merge(queue, %{
+          producer_ips: producers,
+          consumer_ips: consumers
+        })
+      end)
+
     metrics = %{
       queues: enriched_queues,
       system: MalachiMQ.Metrics.get_system_metrics()

@@ -31,6 +31,7 @@ defmodule MalachiMQ.ConnectionRegistry do
       [{^pid, socket, transport, connected_at, ip, _old_type, _old_queue}] ->
         :ets.insert(@table, {pid, socket, transport, connected_at, ip, type, queue_name})
         :ok
+
       [] ->
         {:error, :not_found}
     end
@@ -56,10 +57,12 @@ defmodule MalachiMQ.ConnectionRegistry do
   """
   def list_producers_by_queue(queue_name) do
     :ets.tab2list(@table)
-    |> Enum.filter(fn 
-      {_pid, _socket, _transport, _connected_at, _ip, type, queue} -> 
+    |> Enum.filter(fn
+      {_pid, _socket, _transport, _connected_at, _ip, type, queue} ->
         type == :producer and queue == queue_name
-      _ -> false
+
+      _ ->
+        false
     end)
     |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
       %{
@@ -76,10 +79,12 @@ defmodule MalachiMQ.ConnectionRegistry do
   """
   def list_consumers_by_queue(queue_name) do
     :ets.tab2list(@table)
-    |> Enum.filter(fn 
-      {_pid, _socket, _transport, _connected_at, _ip, type, queue} -> 
+    |> Enum.filter(fn
+      {_pid, _socket, _transport, _connected_at, _ip, type, queue} ->
         type == :consumer and queue == queue_name
-      _ -> false
+
+      _ ->
+        false
     end)
     |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
       %{
@@ -96,17 +101,18 @@ defmodule MalachiMQ.ConnectionRegistry do
   """
   def list_producers do
     :ets.tab2list(@table)
-    |> Enum.filter(fn 
+    |> Enum.filter(fn
       {_pid, _socket, _transport, _connected_at, _ip, type, _queue} -> type == :producer
       {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :producer
     end)
-    |> Enum.map(fn 
+    |> Enum.map(fn
       {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
         %{
           pid: inspect(pid),
           ip: ip,
           connected_at: connected_at
         }
+
       {pid, _socket, _transport, connected_at, ip, _type} ->
         %{
           pid: inspect(pid),
@@ -122,17 +128,18 @@ defmodule MalachiMQ.ConnectionRegistry do
   """
   def list_consumers do
     :ets.tab2list(@table)
-    |> Enum.filter(fn 
+    |> Enum.filter(fn
       {_pid, _socket, _transport, _connected_at, _ip, type, _queue} -> type == :consumer
       {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :consumer
     end)
-    |> Enum.map(fn 
+    |> Enum.map(fn
       {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
         %{
           pid: inspect(pid),
           ip: ip,
           connected_at: connected_at
         }
+
       {pid, _socket, _transport, connected_at, ip, _type} ->
         %{
           pid: inspect(pid),
@@ -152,12 +159,12 @@ defmodule MalachiMQ.ConnectionRegistry do
     Logger.info(I18n.t(:closing_connections, count: length(connections)))
 
     for entry <- connections do
-      {pid, socket, transport, _connected_at, _ip, _type} = 
+      {pid, socket, transport, _connected_at, _ip, _type} =
         case entry do
           {p, s, t, c, i, ty, _q} -> {p, s, t, c, i, ty}
           {p, s, t, c, i, ty} -> {p, s, t, c, i, ty}
         end
-      
+
       # Send shutdown notification to client
       try do
         shutdown_msg = Jason.encode!(%{"shutdown" => true, "reason" => "server_restart"})
@@ -224,6 +231,7 @@ defmodule MalachiMQ.ConnectionRegistry do
           {:ok, {address, _port}} -> format_ip(address)
           {:error, _} -> "unknown"
         end
+
       :gen_tcp ->
         case :inet.peername(socket) do
           {:ok, {address, _port}} -> format_ip(address)
@@ -233,7 +241,10 @@ defmodule MalachiMQ.ConnectionRegistry do
   end
 
   defp format_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
+
   defp format_ip({a, b, c, d, e, f, g, h}),
-    do: "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
+    do:
+      "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
+
   defp format_ip(_), do: "unknown"
 end
