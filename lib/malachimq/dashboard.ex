@@ -223,7 +223,8 @@ defmodule MalachiMQ.Dashboard do
           const queuesHtml = data.queues.map(q =>
             `<div style="padding: 10px; border-left: 3px solid #00d9ff; margin: 10px 0;">
               <strong>${escapeHtml(q.queue)}</strong><br>
-              <span style="color: #888;">Consumers:</span> ${q.queue_stats.consumers} |
+              <span style="color: #888;">Producers:</span> ${q.queue_stats.producers || 0} |
+              <span style="color: #888;">Consumers:</span> ${q.queue_stats.consumers || 0} |
               <span style="color: #00ff88;">✓ Acked:</span> ${q.acked || 0} |
               <span style="color: #ff6b6b;">✗ Nacked:</span> ${q.nacked || 0} |
               <span style="color: #ffd93d;">⏳ Pending:</span> ${q.pending_ack || 0} |
