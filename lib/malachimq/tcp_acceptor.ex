@@ -161,9 +161,6 @@ defmodule MalachiMQ.TCPAcceptor do
 
           :ok ->
             process_buffered_lines(socket, rest, session, transport)
-
-          :error ->
-            :error
         end
 
       [incomplete] ->
