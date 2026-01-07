@@ -143,9 +143,6 @@ defmodule MalachiMQ.TCPAcceptor do
 
             {:ok, remaining} ->
               receive_loop(socket, session, transport, false, remaining)
-
-            :error ->
-              close_socket(socket, transport)
           end
 
         {:error, _} ->
