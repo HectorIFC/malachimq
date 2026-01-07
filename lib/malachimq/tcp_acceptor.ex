@@ -121,26 +121,31 @@ defmodule MalachiMQ.TCPAcceptor do
   end
 
   defp receive_loop(socket, session, transport) do
-    receive_loop(socket, session, transport, false)
+    receive_loop(socket, session, transport, false, "")
   end
 
-  defp receive_loop(socket, session, transport, subscribed) do
+  defp receive_loop(socket, session, transport, subscribed, buffer) do
     if subscribed do
       # Active mode: receive both socket data and queue messages
       set_socket_opts(socket, transport, active: :once)
-      receive_active_loop(socket, session, transport)
+      receive_active_loop(socket, session, transport, buffer)
     else
       # Passive mode: only receive socket data
       recv_timeout = Application.get_env(:malachimq, :tcp_recv_timeout, 30_000)
 
       case recv_data(socket, transport, 0, recv_timeout) do
         {:ok, data} ->
-          case process_authenticated(socket, data, session, transport) do
-            :subscribed ->
-              receive_loop(socket, session, transport, true)
+          new_buffer = buffer <> data
 
-            _ ->
-              receive_loop(socket, session, transport, false)
+          case process_buffered_lines(socket, new_buffer, session, transport) do
+            {:subscribed, remaining} ->
+              receive_loop(socket, session, transport, true, remaining)
+
+            {:ok, remaining} ->
+              receive_loop(socket, session, transport, false, remaining)
+
+            :error ->
+              close_socket(socket, transport)
           end
 
         {:error, _} ->
@@ -149,26 +154,53 @@ defmodule MalachiMQ.TCPAcceptor do
     end
   end
 
-  defp receive_active_loop(socket, session, transport) do
+  # Process complete lines from buffer, return remaining incomplete data
+  defp process_buffered_lines(socket, buffer, session, transport) do
+    case String.split(buffer, "\n", parts: 2) do
+      [complete_line, rest] when complete_line != "" ->
+        case process_authenticated(socket, complete_line, session, transport) do
+          :subscribed ->
+            {:subscribed, rest}
+
+          :ok ->
+            process_buffered_lines(socket, rest, session, transport)
+
+          :error ->
+            :error
+        end
+
+      [incomplete] ->
+        # No complete line yet, keep buffering
+        {:ok, incomplete}
+
+      ["", rest] ->
+        # Empty line (double newline), skip it
+        process_buffered_lines(socket, rest, session, transport)
+    end
+  end
+
+  defp receive_active_loop(socket, session, transport, buffer) do
     receive do
       # TCP data received
       {:tcp, ^socket, data} ->
-        process_authenticated(socket, data, session, transport)
+        new_buffer = buffer <> data
+        remaining = process_active_buffered_lines(socket, new_buffer, session, transport)
         set_socket_opts(socket, transport, active: :once)
-        receive_active_loop(socket, session, transport)
+        receive_active_loop(socket, session, transport, remaining)
 
       # SSL data received
       {:ssl, ^socket, data} ->
-        process_authenticated(socket, data, session, transport)
+        new_buffer = buffer <> data
+        remaining = process_active_buffered_lines(socket, new_buffer, session, transport)
         set_socket_opts(socket, transport, active: :once)
-        receive_active_loop(socket, session, transport)
+        receive_active_loop(socket, session, transport, remaining)
 
       # Queue message received - forward to client
       {:queue_message, message} ->
         json_msg = Jason.encode!(%{"queue_message" => message})
         send_data(socket, json_msg <> "\n", transport)
         set_socket_opts(socket, transport, active: :once)
-        receive_active_loop(socket, session, transport)
+        receive_active_loop(socket, session, transport, buffer)
 
       # Socket closed
       {:tcp_closed, ^socket} ->
@@ -187,7 +219,22 @@ defmodule MalachiMQ.TCPAcceptor do
       30_000 ->
         # Keep connection alive, continue waiting
         set_socket_opts(socket, transport, active: :once)
-        receive_active_loop(socket, session, transport)
+        receive_active_loop(socket, session, transport, buffer)
+    end
+  end
+
+  # Process complete lines in active mode, return remaining buffer
+  defp process_active_buffered_lines(socket, buffer, session, transport) do
+    case String.split(buffer, "\n", parts: 2) do
+      [complete_line, rest] when complete_line != "" ->
+        process_authenticated(socket, complete_line, session, transport)
+        process_active_buffered_lines(socket, rest, session, transport)
+
+      [incomplete] ->
+        incomplete
+
+      ["", rest] ->
+        process_active_buffered_lines(socket, rest, session, transport)
     end
   end
 
