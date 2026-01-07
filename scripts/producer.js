@@ -78,26 +78,50 @@ class MalachiMQClient {
           this.reconnectAttempts = 0;
           resolve(this);
         } catch (err) {
-          this.client.end();
+          this.isConnected = false;
+          if (this.client) {
+            try {
+              this.client.end();
+            } catch (e) {
+              // Ignore
+            }
+          }
           reject(err);
         }
       });
 
       this.client.on('error', (err) => {
         this.isConnected = false;
+        
+        // Clear any pending operations
         if (this.pendingReject) {
           this.pendingReject(err);
           this._clearPending();
         }
-        if (!this.isReconnecting && this.autoReconnect) {
+        
+        // If we're already trying to reconnect, just reject the promise
+        // The scheduled reconnect will handle the retry
+        if (this.isReconnecting) {
+          reject(err);
+          return;
+        }
+        
+        // Start reconnection if enabled
+        if (this.autoReconnect && !this.shouldStop) {
           this._handleDisconnect(err);
-        } else if (!this.autoReconnect) {
+          // Don't reject immediately - let reconnection handle it
+          if (!this.isReconnecting) {
+            reject(err);
+          }
+        } else {
           reject(err);
         }
       });
 
       this.client.on('close', () => {
         this.isConnected = false;
+        
+        // Only trigger reconnect if not already reconnecting and should continue
         if (!this.shouldStop && !this.isReconnecting && this.autoReconnect) {
           this._handleDisconnect(new Error('Connection closed'));
         }
@@ -130,22 +154,34 @@ class MalachiMQClient {
     console.log(colors.yellow(`\n🔄 Reconnecting in ${Math.round(delay / 1000)}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`));
 
     setTimeout(async () => {
-      try {
-        // Clean up old connection
-        if (this.client) {
+      // Clean up old connection before attempting
+      if (this.client) {
+        try {
           this.client.removeAllListeners();
           this.client.destroy();
-          this.client = null;
+        } catch (e) {
+          // Ignore cleanup errors
         }
-        this.token = null;
-        this.buffer = '';
+        this.client = null;
+      }
+      this.token = null;
+      this.buffer = '';
+      this.isConnected = false;
 
+      try {
         await this.connect();
         console.log(colors.green(`✓ Reconnected successfully\n`));
         this.isReconnecting = false;
+        this.reconnectAttempts = 0; // Reset on success
       } catch (err) {
+        // Reconnection failed, schedule another attempt
         this.isReconnecting = false;
-        // connect() will trigger _handleDisconnect again
+        
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this._scheduleReconnect();
+        } else {
+          console.error(colors.red(`\n❌ Max reconnect attempts reached (${this.maxReconnectAttempts})`));
+        }
       }
     }, delay);
   }
