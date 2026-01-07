@@ -4,6 +4,7 @@
  * MalachiMQ Producer - Node.js Client with Authentication
  * 
  * Sends messages to MalachiMQ via TCP with username/password authentication.
+ * Features automatic reconnection on server restart (continuous mode).
  * 
  * Usage:
  *   node producer.js                    # Sends 10 messages
@@ -40,7 +41,7 @@ const colors = {
 };
 
 /**
- * MalachiMQ Client with authentication
+ * MalachiMQ Client with authentication and auto-reconnect support
  */
 class MalachiMQClient {
   constructor(options = {}) {
@@ -54,6 +55,16 @@ class MalachiMQClient {
     this.pendingResolve = null;
     this.pendingReject = null;
     this.pendingTimeout = null;
+    
+    // Auto-reconnect settings
+    this.autoReconnect = options.autoReconnect || false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = options.maxReconnectAttempts || 10;
+    this.baseReconnectDelay = options.baseReconnectDelay || 1000;
+    this.maxReconnectDelay = options.maxReconnectDelay || 30000;
+    this.isReconnecting = false;
+    this.shouldStop = false;
+    this.isConnected = false;
   }
 
   async connect() {
@@ -63,6 +74,8 @@ class MalachiMQClient {
           // Set up persistent data handler
           this.client.on('data', (data) => this._handleData(data));
           await this._authenticate();
+          this.isConnected = true;
+          this.reconnectAttempts = 0;
           resolve(this);
         } catch (err) {
           this.client.end();
@@ -71,13 +84,70 @@ class MalachiMQClient {
       });
 
       this.client.on('error', (err) => {
+        this.isConnected = false;
         if (this.pendingReject) {
           this.pendingReject(err);
           this._clearPending();
         }
-        reject(err);
+        if (!this.isReconnecting && this.autoReconnect) {
+          this._handleDisconnect(err);
+        } else if (!this.autoReconnect) {
+          reject(err);
+        }
+      });
+
+      this.client.on('close', () => {
+        this.isConnected = false;
+        if (!this.shouldStop && !this.isReconnecting && this.autoReconnect) {
+          this._handleDisconnect(new Error('Connection closed'));
+        }
       });
     });
+  }
+
+  _handleDisconnect(err) {
+    if (this.shouldStop || this.isReconnecting) return;
+
+    if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+      this._scheduleReconnect();
+    } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error(colors.red(`\n❌ Max reconnect attempts reached (${this.maxReconnectAttempts})`));
+    }
+  }
+
+  _scheduleReconnect() {
+    if (this.isReconnecting || this.shouldStop) return;
+
+    this.isReconnecting = true;
+    this.reconnectAttempts++;
+
+    // Exponential backoff with jitter
+    const delay = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1) + Math.random() * 1000,
+      this.maxReconnectDelay
+    );
+
+    console.log(colors.yellow(`\n🔄 Reconnecting in ${Math.round(delay / 1000)}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`));
+
+    setTimeout(async () => {
+      try {
+        // Clean up old connection
+        if (this.client) {
+          this.client.removeAllListeners();
+          this.client.destroy();
+          this.client = null;
+        }
+        this.token = null;
+        this.buffer = '';
+
+        await this.connect();
+        console.log(colors.green(`✓ Reconnected successfully\n`));
+        this.isReconnecting = false;
+      } catch (err) {
+        this.isReconnecting = false;
+        // connect() will trigger _handleDisconnect again
+      }
+    }, delay);
   }
 
   _handleData(data) {
@@ -86,7 +156,7 @@ class MalachiMQClient {
   }
 
   _processBuffer() {
-    while (this.buffer.includes('\n') && this.pendingResolve) {
+    while (this.buffer.includes('\n')) {
       const newlineIndex = this.buffer.indexOf('\n');
       const line = this.buffer.slice(0, newlineIndex).trim();
       this.buffer = this.buffer.slice(newlineIndex + 1);
@@ -95,15 +165,28 @@ class MalachiMQClient {
 
       try {
         const parsed = JSON.parse(line);
-        const resolve = this.pendingResolve;
-        this._clearPending();
-        resolve(parsed);
-        return; // Only process one response per pending request
+        
+        // Handle server shutdown notification
+        if (parsed.shutdown) {
+          console.log(colors.yellow(`\n⚠️ Server shutting down: ${parsed.reason || 'unknown'}`));
+          this.isConnected = false;
+          continue;
+        }
+
+        // Handle pending response
+        if (this.pendingResolve) {
+          const resolve = this.pendingResolve;
+          this._clearPending();
+          resolve(parsed);
+          return;
+        }
       } catch (e) {
-        const resolve = this.pendingResolve;
-        this._clearPending();
-        resolve({ raw: line });
-        return;
+        if (this.pendingResolve) {
+          const resolve = this.pendingResolve;
+          this._clearPending();
+          resolve({ raw: line });
+          return;
+        }
       }
     }
   }
@@ -145,7 +228,12 @@ class MalachiMQClient {
   }
 
   async send(queueName, payload, headers = {}) {
-    if (!this.client || !this.token) {
+    // Wait for reconnection if in progress
+    if (this.isReconnecting) {
+      await this._waitForReconnect();
+    }
+
+    if (!this.client || !this.token || !this.isConnected) {
       throw new Error(t('not_connected_error') || 'Not connected');
     }
 
@@ -165,15 +253,32 @@ class MalachiMQClient {
         reject(new Error(t('timeout_error') || 'Timeout'));
       }, 5000);
 
-      this.client.write(message);
+      try {
+        this.client.write(message);
+      } catch (err) {
+        this._clearPending();
+        reject(err);
+      }
 
       // Check if we already have data in buffer
       this._processBuffer();
     });
   }
 
+  async _waitForReconnect(timeout = 60000) {
+    const start = Date.now();
+    while (this.isReconnecting && Date.now() - start < timeout) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    if (!this.isConnected) {
+      throw new Error('Failed to reconnect');
+    }
+  }
+
   close() {
+    this.shouldStop = true;
     if (this.client) {
+      this.client.removeAllListeners();
       this.client.end();
       this.client = null;
       this.token = null;
@@ -301,22 +406,34 @@ async function sendMessagesFast(count) {
 }
 
 /**
- * Sends messages continuously
+ * Sends messages continuously with auto-reconnect
  */
 async function sendMessagesContinuous() {
   console.log(colors.cyan(`\n${t('producer_title_continuous')}`));
   console.log(colors.gray(`   ${t('host')}: ${CONFIG.host}:${CONFIG.port}`));
   console.log(colors.gray(`   User: ${CONFIG.username}`));
   console.log(colors.gray(`   ${t('queue')}: ${CONFIG.queueName}`));
+  console.log(colors.gray(`   Auto-Reconnect: yes`));
   console.log(colors.yellow(`   ${t('press_ctrl_c')}\n`));
 
-  const client = await createConnection();
+  // Create client with auto-reconnect enabled
+  const client = new MalachiMQClient({ autoReconnect: true });
+  await client.connect();
   console.log(colors.green(`${t('connected')} (authenticated as ${CONFIG.username})\n`));
 
   let count = 0;
+  let successCount = 0;
+  let errorCount = 0;
 
   const interval = setInterval(async () => {
     count++;
+    
+    // Skip sending if reconnecting
+    if (client.isReconnecting) {
+      console.log(colors.yellow(`⏸ [${count}]`) + ` Waiting for reconnection...`);
+      return;
+    }
+
     try {
       const payload = {
         id: count,
@@ -330,11 +447,14 @@ async function sendMessagesContinuous() {
       });
 
       if (response.s === 'ok') {
+        successCount++;
         console.log(colors.green(`✓ [${count}]`) + ` ${new Date().toISOString()}`);
       } else {
+        errorCount++;
         console.log(colors.red(`✗ [${count}]`) + ` ${t('error')}: ${JSON.stringify(response)}`);
       }
     } catch (err) {
+      errorCount++;
       console.log(colors.red(`✗ [${count}]`) + ` ${t('error')}: ${err.message}`);
     }
   }, 1000);
@@ -343,7 +463,15 @@ async function sendMessagesContinuous() {
     console.log(colors.yellow(`\n\n${t('stopping')}`));
     clearInterval(interval);
     client.close();
-    console.log(colors.cyan(`${t('total_sent', { count })}\n`));
+    console.log(colors.cyan(`📊 Statistics:`));
+    console.log(colors.gray(`   Total attempts: ${count}`));
+    console.log(colors.green(`   Success: ${successCount}`));
+    if (errorCount > 0) {
+      console.log(colors.red(`   Errors: ${errorCount}`));
+    }
+    if (client.reconnectAttempts > 0) {
+      console.log(colors.yellow(`   Reconnects: ${client.reconnectAttempts}`));
+    }
     process.exit(0);
   });
 }
