@@ -285,6 +285,16 @@ defmodule MalachiMQ.Queue do
       key ->
         case :ets.lookup(buffer_table, key) do
           [{^key, message}] ->
+            # Track message in AckManager before sending
+            if Process.whereis(MalachiMQ.AckManager) do
+              MalachiMQ.AckManager.track_message(
+                message.id,
+                message.queue,
+                consumer_pid,
+                message
+              )
+            end
+
             send(consumer_pid, {:queue_message, message})
             :ets.delete(buffer_table, key)
             flush_buffer(consumer_pid, buffer_table)

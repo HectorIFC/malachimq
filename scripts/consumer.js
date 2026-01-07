@@ -52,8 +52,11 @@ class MalachiMQConsumer {
     this.client = null;
     this.token = null;
     this.messageCount = 0;
+    this.ackedCount = 0;
+    this.nackedCount = 0;
     this.onMessage = options.onMessage || null;
     this.verbose = options.verbose || false;
+    this.autoAck = options.autoAck !== false; // Enable auto-ack by default
   }
 
   async connect() {
@@ -187,11 +190,54 @@ class MalachiMQConsumer {
   _handleMessage(message) {
     this.messageCount++;
     
-    if (this.onMessage) {
-      this.onMessage(message, this.messageCount);
-    } else {
-      this._defaultMessageHandler(message);
+    // Process message with callback or default handler
+    let success = true;
+    try {
+      if (this.onMessage) {
+        const result = this.onMessage(message, this.messageCount);
+        // If callback returns false or throws, consider it a failure
+        success = result !== false;
+      } else {
+        this._defaultMessageHandler(message);
+      }
+    } catch (err) {
+      success = false;
+      console.error(colors.red(`  Error processing message: ${err.message}`));
     }
+
+    // Send ACK or NACK based on processing result
+    if (this.autoAck && message.id) {
+      if (success) {
+        this._sendAck(message.id);
+      } else {
+        this._sendNack(message.id, true); // requeue on failure
+      }
+    }
+  }
+
+  _sendAck(messageId) {
+    if (!this.client) return;
+    
+    const ackMsg = JSON.stringify({
+      action: 'ack',
+      message_id: messageId,
+    }) + '\n';
+    
+    this.client.write(ackMsg);
+    this.ackedCount++;
+  }
+
+  _sendNack(messageId, requeue = true) {
+    if (!this.client) return;
+    
+    const nackMsg = JSON.stringify({
+      action: 'nack',
+      message_id: messageId,
+      requeue: requeue,
+    }) + '\n';
+    
+    this.client.write(nackMsg);
+    this.nackedCount++;
   }
 
   _defaultMessageHandler(message) {
@@ -226,8 +272,11 @@ class MalachiMQConsumer {
   getStats() {
     return {
       messagesReceived: this.messageCount,
+      messagesAcked: this.ackedCount,
+      messagesNacked: this.nackedCount,
       queueName: this.queueName,
       connected: this.client !== null,
+      autoAck: this.autoAck,
     };
   }
 }
@@ -253,6 +302,7 @@ async function startConsumer(queueName, options = {}) {
 async function main() {
   const args = process.argv.slice(2);
   const verbose = args.includes('--verbose') || args.includes('-v');
+  const noAck = args.includes('--no-ack');
   const queueName = args.find(a => !a.startsWith('-')) || CONFIG.queueName;
 
   console.log(colors.cyan(`\n📥 MalachiMQ Consumer`));
@@ -260,12 +310,14 @@ async function main() {
   console.log(colors.gray(`   User: ${CONFIG.username}`));
   console.log(colors.gray(`   Queue: ${queueName}`));
   console.log(colors.gray(`   Verbose: ${verbose ? 'yes' : 'no'}`));
+  console.log(colors.gray(`   Auto-ACK: ${noAck ? 'no' : 'yes'}`));
   console.log(colors.yellow(`   Press Ctrl+C to stop\n`));
 
   try {
     const consumer = new MalachiMQConsumer({
       queueName,
       verbose,
+      autoAck: !noAck,
     });
 
     await consumer.connect();
@@ -281,6 +333,10 @@ async function main() {
       console.log(colors.yellow(`\n\n⏹ Stopping consumer...`));
       console.log(colors.cyan(`📊 Statistics:`));
       console.log(colors.gray(`   Messages received: ${stats.messagesReceived}`));
+      console.log(colors.green(`   Messages acked:    ${stats.messagesAcked}`));
+      if (stats.messagesNacked > 0) {
+        console.log(colors.red(`   Messages nacked:   ${stats.messagesNacked}`));
+      }
       consumer.close();
       process.exit(0);
     });
@@ -306,12 +362,14 @@ ${colors.yellow('Usage:')}
 ${colors.yellow('Options:')}
   -h, --help     Show this help message
   -v, --verbose  Show full message payload and headers
+  --no-ack       Disable automatic message acknowledgment
 
 ${colors.yellow('Examples:')}
   node consumer.js              # Consume from 'test' queue
   node consumer.js orders       # Consume from 'orders' queue
   node consumer.js -v           # Verbose mode with full payloads
   node consumer.js orders -v    # Consume 'orders' with verbose mode
+  node consumer.js --no-ack     # Manual ACK mode (for testing)
 
 ${colors.yellow('Environment Variables:')}
   MALACHIMQ_HOST   Server host (default: localhost)
@@ -320,6 +378,11 @@ ${colors.yellow('Environment Variables:')}
   MALACHIMQ_USER   Username (default: consumer)
   MALACHIMQ_PASS   Password (default: consumer123)
   MALACHIMQ_LOCALE Locale: pt_BR | en_US (default: pt_BR)
+
+${colors.yellow('ACK Behavior:')}
+  By default, messages are automatically acknowledged after processing.
+  Use --no-ack to disable this and handle ACKs manually.
+  If processing throws an error, a NACK with requeue is sent.
 `);
 }
 

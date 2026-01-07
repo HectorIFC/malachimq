@@ -231,6 +231,40 @@ defmodule MalachiMQ.TCPAcceptor do
           :ok
         end
 
+      {:ok, %{"action" => "ack", "message_id" => message_id}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          case MalachiMQ.AckManager.ack(message_id) do
+            :ok ->
+              send_data(socket, ~s({"s":"ok"}\n), transport)
+
+            {:error, :not_found} ->
+              send_data(socket, ~s({"s":"ok","warning":"message_not_found"}\n), transport)
+          end
+
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "nack", "message_id" => message_id} = msg} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          requeue = Map.get(msg, "requeue", true)
+
+          case MalachiMQ.AckManager.nack(message_id, requeue: requeue) do
+            :ok ->
+              send_data(socket, ~s({"s":"ok"}\n), transport)
+
+            {:error, :not_found} ->
+              send_data(socket, ~s({"s":"ok","warning":"message_not_found"}\n), transport)
+          end
+
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
       _ ->
         send_data(socket, ~s({"s":"err","reason":"invalid_request"}\n), transport)
         :ok
