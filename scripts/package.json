@@ -1,0 +1,17 @@
+{
+  "name": "malachimq-nodejs-client",
+  "version": "1.0.0",
+  "description": "Cliente Node.js para MalachiMQ / Node.js client for MalachiMQ",
+  "main": "producer.js",
+  "scripts": {
+    "send": "node producer.js",
+    "send:fast": "node producer.js 1000 --fast",
+    "send:continuous": "node producer.js --continuous",
+    "benchmark": "node producer.js 10000 --fast",
+    "send:en": "MALACHIMQ_LOCALE=en_US node producer.js",
+    "send:pt": "MALACHIMQ_LOCALE=pt_BR node producer.js"
+  },
+  "keywords": ["malachimq", "message-queue", "producer", "i18n"],
+  "author": "",
+  "license": "MIT"
+}

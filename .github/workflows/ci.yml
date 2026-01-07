@@ -1,0 +1,245 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']  # Run on all branches
+  pull_request:
+    branches: ['**']  # Run on all PRs
+
+env:
+  MIX_ENV: test
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  test:
+    name: Test (Elixir ${{matrix.elixir}} / OTP ${{matrix.otp}})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Latest stable
+          - elixir: '1.18.1'
+            otp: '27.2'
+            lint: true
+            coverage: true
+          # Previous stable
+          - elixir: '1.17.3'
+            otp: '27.1'
+          # Minimum supported version (matches mix.exs ~> 1.16)
+          - elixir: '1.16.3'
+            otp: '26.2'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+      
+      - name: 📦 Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-
+      
+      - name: 🔨 Install dependencies
+        run: mix deps.get
+      
+      - name: 🔍 Check unused dependencies
+        run: mix deps.unlock --check-unused
+        if: matrix.lint
+      
+      - name: ⚙️ Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+        if: matrix.lint
+      
+      - name: ⚙️ Compile (dev)
+        run: mix compile
+        if: ${{ !matrix.lint }}
+      
+      - name: 🎨 Check formatting
+        run: mix format --check-formatted
+        if: matrix.lint
+      
+      - name: 🔎 Run Credo (static analysis)
+        run: mix credo --strict
+        if: matrix.lint
+        continue-on-error: true  # Don't fail build on credo warnings
+      
+      - name: 🧪 Run tests
+        run: mix test --trace
+      
+      - name: 📊 Generate coverage report
+        run: mix coveralls.json
+        if: matrix.coverage
+      
+      - name: 📈 Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: matrix.coverage
+        with:
+          files: ./cover/excoveralls.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.16.0'
+          otp-version: '26.2'
+      
+      - name: 📦 Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-security-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-security-
+      
+      - name: 🔨 Install dependencies
+        run: mix deps.get
+      
+      - name: 🔒 Check for known security vulnerabilities
+        run: mix deps.audit
+        continue-on-error: true
+      
+      - name: 🔐 Run Sobelow (security analyzer)
+        run: |
+          mix archive.install hex sobelow --force
+          mix sobelow --config
+        continue-on-error: true
+
+  docker:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔨 Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: malachimq:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: 🧪 Test Docker image
+        run: |
+          docker run --rm -d --name malachimq-test \
+            -e MALACHIMQ_TCP_PORT=4040 \
+            -e MALACHIMQ_DASHBOARD_PORT=4041 \
+            -p 4040:4040 \
+            -p 4041:4041 \
+            malachimq:test
+          
+          # Wait for container to start
+          sleep 10
+          
+          # Check if container is running
+          docker ps | grep malachimq-test
+          
+          # Check if the application process is running (works without procps on slim images)
+          docker exec malachimq-test cat /proc/1/cmdline | tr '\0' ' '
+          
+          # Check if dashboard is responding on port 4041
+          curl -sf http://localhost:4041/metrics || exit 1
+          
+          # Stop container
+          docker stop malachimq-test
+
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: 🔧 Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.16.0'
+          otp-version: '26.2'
+      
+      - name: 📦 Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-quality-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-quality-
+      
+      - name: 🔨 Install dependencies
+        run: mix deps.get
+      
+      - name: 📏 Check code complexity
+        run: |
+          mix archive.install hex ex_check --force
+          mix check
+        continue-on-error: true
+      
+      - name: 📝 Generate documentation
+        run: mix docs
+        continue-on-error: true
+      
+      - name: 🔍 Check for TODO/FIXME comments
+        run: |
+          echo "📝 Checking for TODO/FIXME comments..."
+          grep -r "TODO\|FIXME" lib/ || echo "✅ No TODO/FIXME found"
+        continue-on-error: true
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [test, security, docker, quality]
+    if: always()
+    
+    steps:
+      - name: 📊 Check results
+        run: |
+          echo "Test Status: ${{ needs.test.result }}"
+          echo "Security Status: ${{ needs.security.result }}"
+          echo "Docker Status: ${{ needs.docker.result }}"
+          echo "Quality Status: ${{ needs.quality.result }}"
+          
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "❌ Tests failed!"
+            exit 1
+          fi
+          
+          if [ "${{ needs.docker.result }}" != "success" ]; then
+            echo "❌ Docker build failed!"
+            exit 1
+          fi
+          
+          echo "✅ All critical checks passed!"

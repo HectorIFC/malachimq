@@ -1,0 +1,281 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  pr-validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔍 Check PR title follows conventional commits
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $PR_TITLE"
+          
+          # Check if title follows conventional commits
+          if echo "$PR_TITLE" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .+'; then
+            echo "✅ PR title follows conventional commits"
+          else
+            echo "❌ PR title should follow conventional commits format"
+            echo "Examples:"
+            echo "  - feat: add new feature"
+            echo "  - fix: resolve bug in authentication"
+            echo "  - docs: update README"
+            echo "  - chore: update dependencies"
+            exit 1
+          fi
+      
+      - name: 🔍 Check PR has description
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+          
+          if [ -z "$PR_BODY" ] || [ "$PR_BODY" = "null" ]; then
+            echo "❌ PR must have a description"
+            exit 1
+          fi
+          
+          # Check minimum length
+          if [ ${#PR_BODY} -lt 20 ]; then
+            echo "❌ PR description is too short (minimum 20 characters)"
+            exit 1
+          fi
+          
+          echo "✅ PR has a valid description"
+      
+      - name: 🔍 Check for breaking changes
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          
+          # Check if PR indicates breaking changes
+          if echo "$PR_TITLE" | grep -qi "breaking\|major"; then
+            echo "⚠️  This PR contains BREAKING CHANGES"
+            echo "Make sure CHANGELOG.md is updated with breaking changes section"
+          fi
+          
+          if echo "$PR_BODY" | grep -qi "breaking"; then
+            echo "⚠️  Breaking changes mentioned in PR body"
+          fi
+      
+      - name: 📝 Check CHANGELOG is updated
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -q "CHANGELOG.md"; then
+            echo "✅ CHANGELOG.md has been updated"
+          else
+            echo "⚠️  CHANGELOG.md was not updated"
+            echo "Consider adding an entry to CHANGELOG.md"
+            # Don't fail, just warn
+          fi
+      
+      - name: 📏 Check diff size
+        run: |
+          # Get number of changed lines
+          CHANGED_LINES=$(git diff origin/main...HEAD | wc -l)
+          echo "Total changed lines: $CHANGED_LINES"
+          
+          if [ $CHANGED_LINES -gt 1000 ]; then
+            echo "⚠️  This PR is very large ($CHANGED_LINES lines changed)"
+            echo "Consider splitting it into smaller PRs for easier review"
+          elif [ $CHANGED_LINES -gt 500 ]; then
+            echo "⚠️  This PR is large ($CHANGED_LINES lines changed)"
+          else
+            echo "✅ PR size is reasonable"
+          fi
+      
+      - name: 🔍 Check for test files
+        run: |
+          # Check if non-test files were changed
+          if git diff --name-only origin/main...HEAD | grep -qE '^lib/.*\.ex$'; then
+            echo "📝 Source files were modified"
+            
+            # Check if test files were also changed/added
+            if git diff --name-only origin/main...HEAD | grep -qE '^test/.*\.exs?$'; then
+              echo "✅ Test files were updated"
+            else
+              echo "⚠️  Source files modified but no test files changed"
+              echo "Consider adding or updating tests"
+              # Don't fail, just warn
+            fi
+          else
+            echo "ℹ️  No source files modified"
+          fi
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔍 Dependency Review
+        uses: actions/dependency-review-action@v3
+        continue-on-error: true
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: true
+
+  changed-files:
+    name: Changed Files Analysis
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 📊 Analyze changed files
+        run: |
+          echo "📂 Files changed in this PR:"
+          git diff --name-only origin/main...HEAD
+          
+          echo ""
+          echo "📊 Statistics:"
+          echo "Total files changed: $(git diff --name-only origin/main...HEAD | wc -l)"
+          echo "Elixir files: $(git diff --name-only origin/main...HEAD | grep -c '\.ex$' || echo 0)"
+          echo "Test files: $(git diff --name-only origin/main...HEAD | grep -c '_test\.exs$' || echo 0)"
+          echo "Config files: $(git diff --name-only origin/main...HEAD | grep -c 'config/' || echo 0)"
+          echo "Documentation: $(git diff --name-only origin/main...HEAD | grep -cE '\.(md|markdown)$' || echo 0)"
+      
+      - name: 🔍 Check for sensitive files
+        run: |
+          SENSITIVE_PATTERNS=".env|secret|password|token|key|credential|private"
+          
+          if git diff --name-only origin/main...HEAD | grep -iE "$SENSITIVE_PATTERNS"; then
+            echo "⚠️  Files with potentially sensitive names detected:"
+            git diff --name-only origin/main...HEAD | grep -iE "$SENSITIVE_PATTERNS"
+            echo ""
+            echo "Please ensure no sensitive data is committed"
+            # Don't fail, just warn
+          else
+            echo "✅ No suspicious file names detected"
+          fi
+
+  labeler:
+    name: Auto Label PR
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏷️ Auto-label based on changed files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changedFiles = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const labels = new Set();
+            const files = changedFiles.data.map(f => f.filename);
+            
+            // Add labels based on file patterns
+            if (files.some(f => f.startsWith('test/'))) {
+              labels.add('tests');
+            }
+            
+            if (files.some(f => f.endsWith('.md'))) {
+              labels.add('documentation');
+            }
+            
+            if (files.some(f => f.startsWith('.github/workflows/'))) {
+              labels.add('ci/cd');
+            }
+            
+            if (files.some(f => f.includes('Dockerfile') || f === 'docker-compose.yml')) {
+              labels.add('docker');
+            }
+            
+            if (files.some(f => f.startsWith('lib/malachimq/auth'))) {
+              labels.add('security');
+            }
+            
+            if (files.some(f => f.includes('i18n'))) {
+              labels.add('i18n');
+            }
+            
+            if (files.some(f => f === 'mix.exs' || f === 'mix.lock')) {
+              labels.add('dependencies');
+            }
+            
+            // Determine version bump label
+            const prTitle = context.payload.pull_request.title.toLowerCase();
+            if (prTitle.includes('[major]') || prTitle.includes('breaking')) {
+              labels.add('major');
+            } else if (prTitle.startsWith('feat')) {
+              labels.add('minor');
+            } else if (prTitle.startsWith('fix') || prTitle.startsWith('chore')) {
+              labels.add('patch');
+            }
+            
+            // Add all labels
+            if (labels.size > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: Array.from(labels)
+              });
+              
+              console.log('Added labels:', Array.from(labels).join(', '));
+            }
+
+  comment-summary:
+    name: PR Summary Comment
+    runs-on: ubuntu-latest
+    needs: [pr-validation, changed-files]
+    if: always() && github.event.pull_request.draft == false
+    permissions:
+      pull-requests: write
+    
+    steps:
+      - name: 💬 Post PR summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const validationResult = '${{ needs.pr-validation.result }}';
+            const filesResult = '${{ needs.changed-files.result }}';
+            
+            const emoji = validationResult === 'success' ? '✅' : '❌';
+            
+            const body = `## ${emoji} PR Validation Summary
+            
+            | Check | Status |
+            |-------|--------|
+            | PR Validation | ${validationResult === 'success' ? '✅ Passed' : '❌ Failed'} |
+            | File Analysis | ${filesResult === 'success' ? '✅ Completed' : '⚠️ Check logs'} |
+            
+            ### Next Steps
+            ${validationResult === 'success' 
+              ? '- ✅ PR validation passed\n- ⏳ Waiting for CI tests to complete\n- 👀 Ready for review' 
+              : '- ❌ Please fix validation errors\n- 📝 Check the logs for details'}
+            
+            ---
+            *This comment was automatically generated by the PR validation workflow*
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
