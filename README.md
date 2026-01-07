@@ -6,7 +6,13 @@ High-performance message queue system built with Elixir/OTP.
 [![Release](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml)
 [![Docker Image](https://img.shields.io/docker/v/hectorcardoso/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcardoso/malachimq)
 
-## 🚀 Quick Start with Docker
+## Demo
+
+Watch MalachiMQ in action:
+
+[![MalachiMQ Demo](https://img.youtube.com/vi/hn26zgRoOUI/0.jpg)](https://www.youtube.com/watch?v=hn26zgRoOUI)
+
+## �🚀 Quick Start with Docker
 
 ### Pull and Run
 
