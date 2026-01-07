@@ -229,16 +229,25 @@
   }) + <span class="string">'\n'</span>);
 });
 
+<span class="keyword">let</span> authenticated = <span class="keyword">false</span>;
+
 client.<span class="function">on</span>(<span class="string">'data'</span>, (data) => {
-  <span class="keyword">const</span> response = <span class="function">JSON.parse</span>(data.<span class="function">toString</span>());
+  <span class="keyword">const</span> response = <span class="function">JSON.parse</span>(data.<span class="function">toString</span>().<span class="function">trim</span>());
   
-  <span class="keyword">if</span> (response.token) {
+  <span class="keyword">if</span> (!authenticated && response.s === <span class="string">'ok'</span> && response.token) {
+    authenticated = <span class="keyword">true</span>;
     <span class="comment">// Send message</span>
     client.<span class="function">write</span>(<span class="function">JSON.stringify</span>({
       <span class="key">action</span>: <span class="string">'publish'</span>,
       <span class="key">queue_name</span>: <span class="string">'my-queue'</span>,
       <span class="key">payload</span>: { <span class="key">hello</span>: <span class="string">'world'</span> }
     }) + <span class="string">'\n'</span>);
+  } <span class="keyword">else if</span> (authenticated && response.s === <span class="string">'ok'</span>) {
+    console.<span class="function">log</span>(<span class="string">'Message sent successfully!'</span>);
+    client.<span class="function">end</span>();
+  } <span class="keyword">else if</span> (response.s === <span class="string">'err'</span>) {
+    console.<span class="function">error</span>(<span class="string">'Error:'</span>, response.reason);
+    client.<span class="function">end</span>();
   }
 });</code></pre>
                 </div>
