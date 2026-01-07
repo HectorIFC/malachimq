@@ -169,16 +169,78 @@ client.on('data', (data) => {
 });
 ```
 
-### Using the Producer Script
+### Using the Node.js Scripts
+
+The `scripts/` directory contains Node.js clients for testing and development.
 
 ```bash
 cd scripts
 npm install
+```
 
-MALACHIMQ_USER=producer MALACHIMQ_PASS=producer123 node producer.js
+#### Producer Script
+
+Send messages to a queue:
+
+```bash
+# Send 10 messages (default)
+node producer.js
+
+# Send 100 messages
 node producer.js 100
+
+# Send messages continuously (1/second)
 node producer.js --continuous
+
+# Send 1000 messages in parallel (fast mode)
 node producer.js 1000 --fast
+
+# Show help
+node producer.js --help
+```
+
+#### Consumer Script
+
+Receive messages from a queue:
+
+```bash
+# Consume from 'test' queue (default)
+node consumer.js
+
+# Consume from a specific queue
+node consumer.js orders
+
+# Verbose mode (show full payload and headers)
+node consumer.js --verbose
+
+# Combine options
+node consumer.js orders --verbose
+
+# Show help
+node consumer.js --help
+```
+
+#### Environment Variables (Scripts)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MALACHIMQ_HOST` | localhost | Server host |
+| `MALACHIMQ_PORT` | 4040 | Server port |
+| `MALACHIMQ_QUEUE` | test | Default queue name |
+| `MALACHIMQ_USER` | producer/consumer | Username |
+| `MALACHIMQ_PASS` | producer123/consumer123 | Password |
+| `MALACHIMQ_LOCALE` | pt_BR | Locale (pt_BR, en_US) |
+
+#### Example: Producer + Consumer
+
+**Terminal 1** - Start the consumer:
+```bash
+node consumer.js --verbose
+```
+
+**Terminal 2** - Send messages:
+```bash
+node producer.js 10
 ```
 
 ## 🛠️ Development
