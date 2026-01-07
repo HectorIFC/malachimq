@@ -33,7 +33,7 @@ defmodule MalachiMQ.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :runtime_tools, :crypto],
+      extra_applications: [:logger, :runtime_tools, :crypto, :ssl],
       mod: {MalachiMQ.Application, []}
     ]
   end

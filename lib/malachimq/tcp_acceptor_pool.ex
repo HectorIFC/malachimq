@@ -48,7 +48,13 @@ defmodule MalachiMQ.TCPAcceptorPool do
       end
 
     case listen_result do
-      {:ok, _socket} ->
+      {:ok, test_socket} ->
+        # Close the test socket - each acceptor will create its own
+        case transport do
+          :ssl -> :ssl.close(test_socket)
+          :gen_tcp -> :gen_tcp.close(test_socket)
+        end
+
         num_acceptors = System.schedulers_online()
         transport_name = if enable_tls, do: "TLS", else: "TCP"
         Logger.info(I18n.t(:tcp_server_started, port: port, acceptors: num_acceptors))
