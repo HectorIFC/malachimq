@@ -79,10 +79,12 @@ class MalachiMQClient {
       }) + '\n';
 
       let response = '';
+      let timeoutId = null;
 
       const onData = (data) => {
         response += data.toString();
         if (response.includes('\n')) {
+          clearTimeout(timeoutId);
           this.client.removeListener('data', onData);
           try {
             const parsed = JSON.parse(response.trim());
@@ -101,8 +103,10 @@ class MalachiMQClient {
       this.client.on('data', onData);
       this.client.write(authMsg);
 
-      setTimeout(() => {
-        this.client.removeListener('data', onData);
+      timeoutId = setTimeout(() => {
+        if (this.client) {
+          this.client.removeListener('data', onData);
+        }
         reject(new Error(t('timeout_error') || 'Authentication timeout'));
       }, 5000);
     });
@@ -122,11 +126,15 @@ class MalachiMQClient {
       }) + '\n';
 
       let response = '';
+      let timeoutId = null;
 
       const onData = (data) => {
         response += data.toString();
         if (response.includes('\n')) {
-          this.client.removeListener('data', onData);
+          clearTimeout(timeoutId);
+          if (this.client) {
+            this.client.removeListener('data', onData);
+          }
           try {
             const parsed = JSON.parse(response.trim());
             resolve(parsed);
@@ -139,8 +147,10 @@ class MalachiMQClient {
       this.client.on('data', onData);
       this.client.write(message);
 
-      setTimeout(() => {
-        this.client.removeListener('data', onData);
+      timeoutId = setTimeout(() => {
+        if (this.client) {
+          this.client.removeListener('data', onData);
+        }
         reject(new Error(t('timeout_error') || 'Timeout'));
       }, 5000);
     });
