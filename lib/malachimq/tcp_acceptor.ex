@@ -54,7 +54,6 @@ defmodule MalachiMQ.TCPAcceptor do
           end
 
         if client_socket do
-          parent = self()
           pid = spawn_link(fn ->
             # Wait for socket ownership transfer before proceeding
             receive do
