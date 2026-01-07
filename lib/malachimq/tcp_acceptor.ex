@@ -55,7 +55,7 @@ defmodule MalachiMQ.TCPAcceptor do
 
         if client_socket do
           pid =
-            spawn_link(fn ->
+            spawn(fn ->
               # Wait for socket ownership transfer before proceeding
               receive do
                 :socket_ready -> handle_client(client_socket, transport)
