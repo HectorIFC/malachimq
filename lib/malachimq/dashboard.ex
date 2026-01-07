@@ -71,8 +71,6 @@ defmodule MalachiMQ.Dashboard do
   defp handle_route(socket, %{method: :GET, path: "/"}), do: serve_html(socket)
   defp handle_route(socket, %{method: :GET, path: "/metrics"}), do: serve_metrics(socket)
   defp handle_route(socket, %{method: :GET, path: "/stream"}), do: serve_sse(socket)
-  defp handle_route(socket, %{method: :GET, path: "/producers"}), do: serve_producers(socket)
-  defp handle_route(socket, %{method: :GET, path: "/consumers"}), do: serve_consumers(socket)
   defp handle_route(socket, _), do: serve_404(socket)
 
   defp serve_html(socket) do
@@ -91,46 +89,25 @@ defmodule MalachiMQ.Dashboard do
   end
 
   defp serve_metrics(socket) do
+    queue_metrics = MalachiMQ.Metrics.get_all_metrics()
+    
+    # Enrich each queue with producer/consumer IPs
+    enriched_queues = Enum.map(queue_metrics, fn queue ->
+      producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue.queue)
+      consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue.queue)
+      
+      Map.merge(queue, %{
+        producer_ips: producers,
+        consumer_ips: consumers
+      })
+    end)
+    
     metrics = %{
-      queues: MalachiMQ.Metrics.get_all_metrics(),
+      queues: enriched_queues,
       system: MalachiMQ.Metrics.get_system_metrics()
     }
 
     json = Jason.encode!(metrics)
-
-    response = """
-    HTTP/1.1 200 OK\r
-    Content-Type: application/json\r
-    Access-Control-Allow-Origin: *\r
-    Content-Length: #{byte_size(json)}\r
-    \r
-    #{json}
-    """
-
-    :gen_tcp.send(socket, response)
-    :gen_tcp.close(socket)
-  end
-
-  defp serve_producers(socket) do
-    producers = MalachiMQ.ConnectionRegistry.list_producers()
-    json = Jason.encode!(%{producers: producers, total: length(producers)})
-
-    response = """
-    HTTP/1.1 200 OK\r
-    Content-Type: application/json\r
-    Access-Control-Allow-Origin: *\r
-    Content-Length: #{byte_size(json)}\r
-    \r
-    #{json}
-    """
-
-    :gen_tcp.send(socket, response)
-    :gen_tcp.close(socket)
-  end
-
-  defp serve_consumers(socket) do
-    consumers = MalachiMQ.ConnectionRegistry.list_consumers()
-    json = Jason.encode!(%{consumers: consumers, total: length(consumers)})
 
     response = """
     HTTP/1.1 200 OK\r
@@ -162,8 +139,21 @@ defmodule MalachiMQ.Dashboard do
   end
 
   defp stream_metrics(socket) do
+    queue_metrics = MalachiMQ.Metrics.get_all_metrics()
+    
+    # Enrich each queue with producer/consumer IPs
+    enriched_queues = Enum.map(queue_metrics, fn queue ->
+      producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue.queue)
+      consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue.queue)
+      
+      Map.merge(queue, %{
+        producer_ips: producers,
+        consumer_ips: consumers
+      })
+    end)
+    
     metrics = %{
-      queues: MalachiMQ.Metrics.get_all_metrics(),
+      queues: enriched_queues,
       system: MalachiMQ.Metrics.get_system_metrics()
     }
 
@@ -228,26 +218,28 @@ defmodule MalachiMQ.Dashboard do
           margin-bottom: 20px;
         }
         .connection-list {
-          max-height: 400px;
+          max-height: 200px;
           overflow-y: auto;
           margin-top: 10px;
+          padding: 5px;
         }
         .connection-item {
           background: #0f1428;
           border-left: 3px solid #00d9ff;
-          padding: 10px;
-          margin-bottom: 8px;
+          padding: 8px;
+          margin-bottom: 6px;
           border-radius: 4px;
-          font-size: 0.9em;
+          font-size: 0.85em;
         }
         .connection-item .ip {
           color: #00ff88;
           font-family: monospace;
           font-weight: bold;
+          font-size: 0.9em;
         }
         .connection-item .time {
           color: #888;
-          font-size: 0.85em;
+          font-size: 0.8em;
         }
         .pagination {
           display: flex;
@@ -282,6 +274,64 @@ defmodule MalachiMQ.Dashboard do
           padding: 30px;
           font-style: italic;
         }
+        .queue-card {
+          background: #1a1f3a;
+          border: 1px solid #2a3f5f;
+          border-left: 4px solid #00d9ff;
+          border-radius: 8px;
+          padding: 15px;
+          margin-bottom: 15px;
+        }
+        .queue-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #2a3f5f;
+        }
+        .queue-name {
+          color: #00ff88;
+          font-size: 1.1em;
+          font-weight: bold;
+          font-family: monospace;
+        }
+        .queue-metrics {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+          margin-bottom: 15px;
+          font-size: 0.9em;
+        }
+        .queue-metric-item {
+          padding: 5px;
+        }
+        .connections-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
+          margin-top: 12px;
+        }
+        .connection-section {
+          background: #0f1428;
+          border-radius: 6px;
+          padding: 10px;
+        }
+        .connection-section h3 {
+          color: #00d9ff;
+          font-size: 0.95em;
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .connection-count {
+          background: #2a3f5f;
+          color: #00ff88;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 0.85em;
+        }
       </style>
     </head>
     <body>
@@ -295,32 +345,6 @@ defmodule MalachiMQ.Dashboard do
         <div class="metric">
           <span>Memory:</span>
           <span class="metric-value" id="memory">-</span>
-        </div>
-      </div>
-
-      <div class="grid-container">
-        <div class="card">
-          <h2>📤 Producer List (<span id="producer-total">0</span>)</h2>
-          <div class="connection-list" id="producer-list">
-            <div class="empty-state">Loading...</div>
-          </div>
-          <div class="pagination">
-            <button id="producer-prev" onclick="changePage('producer', -1)">← Prev</button>
-            <span class="page-info" id="producer-page-info">Page 1</span>
-            <button id="producer-next" onclick="changePage('producer', 1)">Next →</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>📥 Consumer List (<span id="consumer-total">0</span>)</h2>
-          <div class="connection-list" id="consumer-list">
-            <div class="empty-state">Loading...</div>
-          </div>
-          <div class="pagination">
-            <button id="consumer-prev" onclick="changePage('consumer', -1)">← Prev</button>
-            <span class="page-info" id="consumer-page-info">Page 1</span>
-            <button id="consumer-next" onclick="changePage('consumer', 1)">Next →</button>
-          </div>
         </div>
       </div>
 
@@ -339,11 +363,8 @@ defmodule MalachiMQ.Dashboard do
             .replace(/'/g, "&#039;");
         }
 
-        // Pagination state
-        const state = {
-          producer: { page: 1, perPage: 10, data: [] },
-          consumer: { page: 1, perPage: 10, data: [] }
-        };
+        // Pagination state - one state per queue
+        const queuePaginationState = {};
 
         function formatTime(timestamp) {
           const now = Date.now();
@@ -359,32 +380,34 @@ defmodule MalachiMQ.Dashboard do
           return `${seconds}s ago`;
         }
 
-        function renderList(type) {
-          const data = state[type].data;
-          const page = state[type].page;
-          const perPage = state[type].perPage;
-          const start = (page - 1) * perPage;
-          const end = start + perPage;
-          const pageData = data.slice(start, end);
-          const totalPages = Math.ceil(data.length / perPage);
-
-          const listEl = document.getElementById(`${type}-list`);
-          const totalEl = document.getElementById(`${type}-total`);
-          const pageInfoEl = document.getElementById(`${type}-page-info`);
-          const prevBtn = document.getElementById(`${type}-prev`);
-          const nextBtn = document.getElementById(`${type}-next`);
-
-          totalEl.textContent = data.length;
-
-          if (data.length === 0) {
-            listEl.innerHTML = '<div class="empty-state">No ' + type + 's connected</div>';
-            pageInfoEl.textContent = 'Page 0 of 0';
-            prevBtn.disabled = true;
-            nextBtn.disabled = true;
-            return;
+        function renderConnectionList(connections, type, queueName) {
+          if (!queuePaginationState[queueName]) {
+            queuePaginationState[queueName] = {
+              producerPage: 1,
+              consumerPage: 1,
+              perPage: 10
+            };
           }
 
-          const html = pageData.map(item => {
+          const page = type === 'producer' 
+            ? queuePaginationState[queueName].producerPage 
+            : queuePaginationState[queueName].consumerPage;
+          const perPage = queuePaginationState[queueName].perPage;
+          const start = (page - 1) * perPage;
+          const end = start + perPage;
+          const pageData = connections.slice(start, end);
+          const totalPages = Math.ceil(connections.length / perPage);
+
+          if (connections.length === 0) {
+            return `
+              <div class="connection-section">
+                <h3>📤 ${type === 'producer' ? 'Producers' : 'Consumers'} <span class="connection-count">0</span></h3>
+                <div class="empty-state" style="padding: 15px; font-size: 0.85em;">No ${type}s</div>
+              </div>
+            `;
+          }
+
+          const itemsHtml = pageData.map(item => {
             const time = formatTime(item.connected_at);
             return `
               <div class="connection-item">
@@ -394,70 +417,120 @@ defmodule MalachiMQ.Dashboard do
             `;
           }).join('');
 
-          listEl.innerHTML = html;
-          pageInfoEl.textContent = `Page ${page} of ${totalPages}`;
-          prevBtn.disabled = page <= 1;
-          nextBtn.disabled = page >= totalPages;
+          const paginationHtml = totalPages > 1 ? `
+            <div class="pagination">
+              <button onclick="changeQueuePage('${escapeHtml(queueName)}', '${type}', -1)" ${page <= 1 ? 'disabled' : ''}>← Prev</button>
+              <span class="page-info">Page ${page} of ${totalPages}</span>
+              <button onclick="changeQueuePage('${escapeHtml(queueName)}', '${type}', 1)" ${page >= totalPages ? 'disabled' : ''}>Next →</button>
+            </div>
+          ` : '';
+
+          return `
+            <div class="connection-section">
+              <h3>${type === 'producer' ? '📤 Producers' : '📥 Consumers'} <span class="connection-count">${connections.length}</span></h3>
+              <div class="connection-list">
+                ${itemsHtml}
+              </div>
+              ${paginationHtml}
+            </div>
+          `;
         }
 
-        function changePage(type, direction) {
-          const totalPages = Math.ceil(state[type].data.length / state[type].perPage);
-          const newPage = state[type].page + direction;
-          
-          if (newPage >= 1 && newPage <= totalPages) {
-            state[type].page = newPage;
-            renderList(type);
+        function changeQueuePage(queueName, type, direction) {
+          if (!queuePaginationState[queueName]) return;
+
+          const currentPage = type === 'producer' 
+            ? queuePaginationState[queueName].producerPage 
+            : queuePaginationState[queueName].consumerPage;
+          const newPage = currentPage + direction;
+
+          if (newPage >= 1) {
+            if (type === 'producer') {
+              queuePaginationState[queueName].producerPage = newPage;
+            } else {
+              queuePaginationState[queueName].consumerPage = newPage;
+            }
+            // Force re-render by triggering update
+            const lastData = window.lastMetricsData;
+            if (lastData) {
+              renderQueues(lastData.queues);
+            }
           }
         }
 
-        async function updateConnections() {
-          try {
-            const [producerRes, consumerRes] = await Promise.all([
-              fetch('/producers'),
-              fetch('/consumers')
-            ]);
-
-            const producerData = await producerRes.json();
-            const consumerData = await consumerRes.json();
-
-            state.producer.data = producerData.producers;
-            state.consumer.data = consumerData.consumers;
-
-            renderList('producer');
-            renderList('consumer');
-          } catch (err) {
-            console.error('Failed to update connections:', err);
+        function renderQueues(queues) {
+          if (!queues || queues.length === 0) {
+            document.getElementById('queues').innerHTML = '<div class="empty-state">No queues</div>';
+            return;
           }
+
+          const queuesHtml = queues.map(q => {
+            const producers = q.producer_ips || [];
+            const consumers = q.consumer_ips || [];
+
+            const producerList = renderConnectionList(producers, 'producer', q.queue);
+            const consumerList = renderConnectionList(consumers, 'consumer', q.queue);
+
+            return `
+              <div class="queue-card">
+                <div class="queue-header">
+                  <div class="queue-name">${escapeHtml(q.queue)}</div>
+                </div>
+                
+                <div class="queue-metrics">
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Producers:</span> <span style="color: #00ff88;">${q.queue_stats.producers || 0}</span>
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Consumers:</span> <span style="color: #00ff88;">${q.queue_stats.consumers || 0}</span>
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #00ff88;">✓ Acked:</span> ${q.acked || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #ff6b6b;">✗ Nacked:</span> ${q.nacked || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #ffd93d;">⏳ Pending:</span> ${q.pending_ack || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #6bcfff;">↻ Retried:</span> ${q.retried || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #ff4757;">☠ DLQ:</span> ${q.dead_lettered || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Processed:</span> ${q.processed}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Buffered:</span> ${q.queue_stats.buffered}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Latency:</span> ${q.latency_us.avg ? (q.latency_us.avg/1000).toFixed(2) + 'ms' : '-'}
+                  </div>
+                </div>
+
+                <div class="connections-grid">
+                  ${producerList}
+                  ${consumerList}
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          document.getElementById('queues').innerHTML = queuesHtml;
         }
 
         const source = new EventSource('/stream');
         source.onmessage = (event) => {
           const data = JSON.parse(event.data);
+          window.lastMetricsData = data;
+          
           document.getElementById('processes').textContent = data.system.process_count;
           document.getElementById('memory').textContent = data.system.memory.total_mb.toFixed(2) + ' MB';
 
-          const queuesHtml = data.queues.map(q =>
-            `<div style="padding: 10px; border-left: 3px solid #00d9ff; margin: 10px 0;">
-              <strong>${escapeHtml(q.queue)}</strong><br>
-              <span style="color: #888;">Producers:</span> ${q.queue_stats.producers || 0} |
-              <span style="color: #888;">Consumers:</span> ${q.queue_stats.consumers || 0} |
-              <span style="color: #00ff88;">✓ Acked:</span> ${q.acked || 0} |
-              <span style="color: #ff6b6b;">✗ Nacked:</span> ${q.nacked || 0} |
-              <span style="color: #ffd93d;">⏳ Pending:</span> ${q.pending_ack || 0} |
-              <span style="color: #6bcfff;">↻ Retried:</span> ${q.retried || 0} |
-              <span style="color: #ff4757;">☠ DLQ:</span> ${q.dead_lettered || 0}<br>
-              <span style="color: #888;">Processed:</span> ${q.processed} |
-              <span style="color: #888;">Buffered:</span> ${q.queue_stats.buffered} |
-              <span style="color: #888;">Latency:</span> ${q.latency_us.avg ? (q.latency_us.avg/1000).toFixed(2) + 'ms' : '-'}
-            </div>`
-          ).join('');
-
-          document.getElementById('queues').innerHTML = queuesHtml || 'No queues';
+          renderQueues(data.queues);
         };
-
-        // Initial load and periodic updates for connections
-        updateConnections();
-        setInterval(updateConnections, 2000);
       </script>
     </body>
     </html>

@@ -18,18 +18,18 @@ defmodule MalachiMQ.ConnectionRegistry do
   """
   def register(pid, socket, transport) do
     ip = get_peer_address(socket, transport)
-    :ets.insert(@table, {pid, socket, transport, System.monotonic_time(:millisecond), ip, :unknown})
+    :ets.insert(@table, {pid, socket, transport, System.monotonic_time(:millisecond), ip, :unknown, nil})
     Process.monitor(pid)
     :ok
   end
 
   @doc """
-  Update connection type (producer or consumer).
+  Update connection type (producer or consumer) and associated queue.
   """
-  def set_connection_type(pid, type) when type in [:producer, :consumer] do
+  def set_connection_type(pid, type, queue_name \\ nil) when type in [:producer, :consumer] do
     case :ets.lookup(@table, pid) do
-      [{^pid, socket, transport, connected_at, ip, _old_type}] ->
-        :ets.insert(@table, {pid, socket, transport, connected_at, ip, type})
+      [{^pid, socket, transport, connected_at, ip, _old_type, _old_queue}] ->
+        :ets.insert(@table, {pid, socket, transport, connected_at, ip, type, queue_name})
         :ok
       [] ->
         {:error, :not_found}
@@ -52,12 +52,16 @@ defmodule MalachiMQ.ConnectionRegistry do
   end
 
   @doc """
-  Get list of producers with their IPs.
+  Get list of producers with their IPs for a specific queue.
   """
-  def list_producers do
+  def list_producers_by_queue(queue_name) do
     :ets.tab2list(@table)
-    |> Enum.filter(fn {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :producer end)
-    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type} ->
+    |> Enum.filter(fn 
+      {_pid, _socket, _transport, _connected_at, _ip, type, queue} -> 
+        type == :producer and queue == queue_name
+      _ -> false
+    end)
+    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
       %{
         pid: inspect(pid),
         ip: ip,
@@ -68,17 +72,73 @@ defmodule MalachiMQ.ConnectionRegistry do
   end
 
   @doc """
-  Get list of consumers with their IPs.
+  Get list of consumers with their IPs for a specific queue.
   """
-  def list_consumers do
+  def list_consumers_by_queue(queue_name) do
     :ets.tab2list(@table)
-    |> Enum.filter(fn {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :consumer end)
-    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type} ->
+    |> Enum.filter(fn 
+      {_pid, _socket, _transport, _connected_at, _ip, type, queue} -> 
+        type == :consumer and queue == queue_name
+      _ -> false
+    end)
+    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
       %{
         pid: inspect(pid),
         ip: ip,
         connected_at: connected_at
       }
+    end)
+    |> Enum.sort_by(& &1.connected_at, :desc)
+  end
+
+  @doc """
+  Get list of producers with their IPs.
+  """
+  def list_producers do
+    :ets.tab2list(@table)
+    |> Enum.filter(fn 
+      {_pid, _socket, _transport, _connected_at, _ip, type, _queue} -> type == :producer
+      {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :producer
+    end)
+    |> Enum.map(fn 
+      {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
+        %{
+          pid: inspect(pid),
+          ip: ip,
+          connected_at: connected_at
+        }
+      {pid, _socket, _transport, connected_at, ip, _type} ->
+        %{
+          pid: inspect(pid),
+          ip: ip,
+          connected_at: connected_at
+        }
+    end)
+    |> Enum.sort_by(& &1.connected_at, :desc)
+  end
+
+  @doc """
+  Get list of consumers with their IPs.
+  """
+  def list_consumers do
+    :ets.tab2list(@table)
+    |> Enum.filter(fn 
+      {_pid, _socket, _transport, _connected_at, _ip, type, _queue} -> type == :consumer
+      {_pid, _socket, _transport, _connected_at, _ip, type} -> type == :consumer
+    end)
+    |> Enum.map(fn 
+      {pid, _socket, _transport, connected_at, ip, _type, _queue} ->
+        %{
+          pid: inspect(pid),
+          ip: ip,
+          connected_at: connected_at
+        }
+      {pid, _socket, _transport, connected_at, ip, _type} ->
+        %{
+          pid: inspect(pid),
+          ip: ip,
+          connected_at: connected_at
+        }
     end)
     |> Enum.sort_by(& &1.connected_at, :desc)
   end
@@ -91,7 +151,13 @@ defmodule MalachiMQ.ConnectionRegistry do
     connections = :ets.tab2list(@table)
     Logger.info(I18n.t(:closing_connections, count: length(connections)))
 
-    for {pid, socket, transport, _connected_at, _ip, _type} <- connections do
+    for entry <- connections do
+      {pid, socket, transport, _connected_at, _ip, _type} = 
+        case entry do
+          {p, s, t, c, i, ty, _q} -> {p, s, t, c, i, ty}
+          {p, s, t, c, i, ty} -> {p, s, t, c, i, ty}
+        end
+      
       # Send shutdown notification to client
       try do
         shutdown_msg = Jason.encode!(%{"shutdown" => true, "reason" => "server_restart"})
