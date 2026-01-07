@@ -54,19 +54,22 @@ defmodule MalachiMQ.TCPAcceptor do
           end
 
         if client_socket do
-          pid = spawn_link(fn ->
-            # Wait for socket ownership transfer before proceeding
-            receive do
-              :socket_ready -> handle_client(client_socket, transport)
-            after
-              5000 -> :timeout
-            end
-          end)
+          pid =
+            spawn_link(fn ->
+              # Wait for socket ownership transfer before proceeding
+              receive do
+                :socket_ready -> handle_client(client_socket, transport)
+              after
+                5000 -> :timeout
+              end
+            end)
+
           # Transfer socket ownership to the spawned process
           case transport do
             :ssl -> :ssl.controlling_process(client_socket, pid)
             :gen_tcp -> :gen_tcp.controlling_process(client_socket, pid)
           end
+
           # Signal that transfer is complete
           send(pid, :socket_ready)
         end
