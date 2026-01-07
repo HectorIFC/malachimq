@@ -121,20 +121,78 @@ defmodule MalachiMQ.TCPAcceptor do
   end
 
   defp receive_loop(socket, session, transport) do
-    recv_timeout = Application.get_env(:malachimq, :tcp_recv_timeout, 30_000)
+    receive_loop(socket, session, transport, false)
+  end
 
-    case recv_data(socket, transport, 0, recv_timeout) do
-      {:ok, data} ->
-        process_authenticated(socket, data, session, transport)
-        receive_loop(socket, session, transport)
+  defp receive_loop(socket, session, transport, subscribed) do
+    if subscribed do
+      # Active mode: receive both socket data and queue messages
+      set_socket_opts(socket, transport, active: :once)
+      receive_active_loop(socket, session, transport)
+    else
+      # Passive mode: only receive socket data
+      recv_timeout = Application.get_env(:malachimq, :tcp_recv_timeout, 30_000)
 
-      {:error, _} ->
-        case transport do
-          :ssl -> :ssl.close(socket)
-          :gen_tcp -> :gen_tcp.close(socket)
-        end
+      case recv_data(socket, transport, 0, recv_timeout) do
+        {:ok, data} ->
+          case process_authenticated(socket, data, session, transport) do
+            :subscribed ->
+              receive_loop(socket, session, transport, true)
+
+            _ ->
+              receive_loop(socket, session, transport, false)
+          end
+
+        {:error, _} ->
+          close_socket(socket, transport)
+      end
     end
   end
+
+  defp receive_active_loop(socket, session, transport) do
+    receive do
+      # TCP data received
+      {:tcp, ^socket, data} ->
+        process_authenticated(socket, data, session, transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport)
+
+      # SSL data received
+      {:ssl, ^socket, data} ->
+        process_authenticated(socket, data, session, transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport)
+
+      # Queue message received - forward to client
+      {:queue_message, message} ->
+        json_msg = Jason.encode!(%{"queue_message" => message})
+        send_data(socket, json_msg <> "\n", transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport)
+
+      # Socket closed
+      {:tcp_closed, ^socket} ->
+        :ok
+
+      {:ssl_closed, ^socket} ->
+        :ok
+
+      # Socket error
+      {:tcp_error, ^socket, _reason} ->
+        close_socket(socket, transport)
+
+      {:ssl_error, ^socket, _reason} ->
+        close_socket(socket, transport)
+    after
+      30_000 ->
+        # Keep connection alive, continue waiting
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport)
+    end
+  end
+
+  defp close_socket(socket, :ssl), do: :ssl.close(socket)
+  defp close_socket(socket, :gen_tcp), do: :gen_tcp.close(socket)
 
   @compile {:inline, process_authenticated: 4}
   defp process_authenticated(socket, data, session, transport) do
@@ -144,18 +202,22 @@ defmodule MalachiMQ.TCPAcceptor do
           h = Map.get(msg, "headers", %{})
           MalachiMQ.Queue.enqueue(q, p, h)
           send_data(socket, ~s({"s":"ok"}\n), transport)
+          :ok
         else
           Logger.warning(I18n.t(:permission_denied, username: session.username, action: "publish"))
           send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
         end
 
       {:ok, %{"action" => "subscribe", "queue_name" => q}} ->
         if MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
           MalachiMQ.Queue.subscribe(q, self())
           send_data(socket, ~s({"s":"ok"}\n), transport)
+          :subscribed
         else
           Logger.warning(I18n.t(:permission_denied, username: session.username, action: "subscribe"))
           send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
         end
 
       {:ok, %{"queue_name" => q, "payload" => p} = msg} ->
@@ -163,12 +225,15 @@ defmodule MalachiMQ.TCPAcceptor do
           h = Map.get(msg, "headers", %{})
           MalachiMQ.Queue.enqueue(q, p, h)
           send_data(socket, ~s({"s":"ok"}\n), transport)
+          :ok
         else
           send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
         end
 
       _ ->
         send_data(socket, ~s({"s":"err","reason":"invalid_request"}\n), transport)
+        :ok
     end
   end
 
