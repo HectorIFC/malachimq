@@ -90,17 +90,21 @@ defmodule MalachiMQ.TCPAcceptor do
   end
 
   defp handle_client(socket, transport) do
-    case authenticate_client(socket, transport) do
-      {:ok, session} ->
-        receive_loop(socket, session, transport)
+    # Register connection for graceful shutdown tracking
+    MalachiMQ.ConnectionRegistry.register(self(), socket, transport)
 
-      {:error, reason} ->
-        send_error(socket, reason, transport)
+    try do
+      case authenticate_client(socket, transport) do
+        {:ok, session} ->
+          receive_loop(socket, session, transport)
 
-        case transport do
-          :ssl -> :ssl.close(socket)
-          :gen_tcp -> :gen_tcp.close(socket)
-        end
+        {:error, reason} ->
+          send_error(socket, reason, transport)
+          close_socket(socket, transport)
+      end
+    after
+      # Unregister on exit (normal or error)
+      MalachiMQ.ConnectionRegistry.unregister(self())
     end
   end
 

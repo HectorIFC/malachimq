@@ -11,6 +11,8 @@ defmodule MalachiMQ.Application do
   - Message acknowledgment tracking
   """
   use Application
+  require Logger
+  alias MalachiMQ.I18n
 
   def start(_type, _args) do
     port = Application.get_env(:malachimq, :tcp_port, 4040)
@@ -30,11 +32,22 @@ defmodule MalachiMQ.Application do
       MalachiMQ.Metrics,
       MalachiMQ.Auth,
       MalachiMQ.AckManager,
+      MalachiMQ.ConnectionRegistry,
       {MalachiMQ.TCPAcceptorPool, port},
       {MalachiMQ.Dashboard, dashboard_port}
     ]
 
     opts = [strategy: :one_for_one, name: MalachiMQ.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  @doc """
+  Called before the application stops.
+  Performs graceful shutdown of all client connections.
+  """
+  def prep_stop(_state) do
+    Logger.info(I18n.t(:graceful_shutdown))
+    MalachiMQ.ConnectionRegistry.close_all()
+    :ok
   end
 end

@@ -169,6 +169,18 @@ defmodule MalachiMQ.I18n do
     system_ets_tables: %{
       "pt_BR" => "   Tabelas ETS: %{tables}/%{limit}",
       "en_US" => "   ETS Tables: %{tables}/%{limit}"
+    },
+    closing_connections: %{
+      "pt_BR" => "🔌 Fechando %{count} conexões ativas...",
+      "en_US" => "🔌 Closing %{count} active connections..."
+    },
+    connection_registry_started: %{
+      "pt_BR" => "✅ Registro de conexões iniciado",
+      "en_US" => "✅ Connection registry started"
+    },
+    graceful_shutdown: %{
+      "pt_BR" => "⏳ Iniciando shutdown gracioso...",
+      "en_US" => "⏳ Starting graceful shutdown..."
     }
   }
 

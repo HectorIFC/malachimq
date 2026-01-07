@@ -4,11 +4,13 @@
  * MalachiMQ Consumer - Node.js Client with Authentication
  * 
  * Consumes messages from MalachiMQ via TCP with username/password authentication.
+ * Features automatic reconnection on server restart.
  * 
  * Usage:
  *   node consumer.js                    # Consumes from 'test' queue
  *   node consumer.js orders             # Consumes from 'orders' queue
  *   node consumer.js --verbose          # Shows full message payload
+ *   node consumer.js --no-reconnect     # Disable auto-reconnect
  * 
  * Environment variables:
  *   MALACHIMQ_HOST     Server host (default: localhost)
@@ -40,7 +42,7 @@ const colors = {
 };
 
 /**
- * MalachiMQ Consumer Client with authentication
+ * MalachiMQ Consumer Client with authentication and auto-reconnect
  */
 class MalachiMQConsumer {
   constructor(options = {}) {
@@ -57,6 +59,13 @@ class MalachiMQConsumer {
     this.onMessage = options.onMessage || null;
     this.verbose = options.verbose || false;
     this.autoAck = options.autoAck !== false; // Enable auto-ack by default
+    this.autoReconnect = options.autoReconnect !== false; // Enable auto-reconnect by default
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = options.maxReconnectAttempts || 10;
+    this.baseReconnectDelay = options.baseReconnectDelay || 1000; // 1 second
+    this.maxReconnectDelay = options.maxReconnectDelay || 30000; // 30 seconds
+    this.isReconnecting = false;
+    this.shouldStop = false;
   }
 
   async connect() {
@@ -64,6 +73,7 @@ class MalachiMQConsumer {
       this.client = net.createConnection(this.port, this.host, async () => {
         try {
           await this._authenticate();
+          this.reconnectAttempts = 0; // Reset on successful connection
           resolve(this);
         } catch (err) {
           this.client.end();
@@ -72,9 +82,66 @@ class MalachiMQConsumer {
       });
 
       this.client.on('error', (err) => {
+        if (!this.isReconnecting) {
+          this._handleDisconnect(err);
+        }
         reject(err);
       });
+
+      this.client.on('close', () => {
+        if (!this.shouldStop && !this.isReconnecting) {
+          this._handleDisconnect(new Error('Connection closed'));
+        }
+      });
     });
+  }
+
+  _handleDisconnect(err) {
+    if (this.shouldStop || this.isReconnecting) return;
+
+    if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+      this._scheduleReconnect();
+    } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error(colors.red(`\n❌ Max reconnect attempts reached (${this.maxReconnectAttempts})`));
+    }
+  }
+
+  _scheduleReconnect() {
+    if (this.isReconnecting || this.shouldStop) return;
+
+    this.isReconnecting = true;
+    this.reconnectAttempts++;
+
+    // Exponential backoff with jitter
+    const delay = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1) + Math.random() * 1000,
+      this.maxReconnectDelay
+    );
+
+    console.log(colors.yellow(`\n🔄 Reconnecting in ${Math.round(delay / 1000)}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`));
+
+    setTimeout(async () => {
+      try {
+        // Clean up old connection
+        if (this.client) {
+          this.client.removeAllListeners();
+          this.client.destroy();
+          this.client = null;
+        }
+
+        await this.connect();
+        console.log(colors.green(`✓ Reconnected successfully`));
+
+        await this.subscribe(this.queueName);
+        console.log(colors.green(`✓ Resubscribed to queue '${this.queueName}'`));
+        console.log(colors.gray(`\nWaiting for messages...\n`));
+
+        this.isReconnecting = false;
+      } catch (err) {
+        this.isReconnecting = false;
+        // connect() will trigger _handleDisconnect again
+      }
+    }, delay);
   }
 
   _authenticate() {
@@ -163,6 +230,13 @@ class MalachiMQConsumer {
               clearTimeout(timeoutId);
               resolved = true;
               reject(new Error(parsed.reason || 'Subscription failed'));
+              continue;
+            }
+
+            // Handle server shutdown notification
+            if (parsed.shutdown) {
+              console.log(colors.yellow(`\n⚠️ Server shutting down: ${parsed.reason || 'unknown'}`));
+              // Connection will be closed by server, _handleDisconnect will trigger reconnect
               continue;
             }
 
@@ -262,7 +336,9 @@ class MalachiMQConsumer {
   }
 
   close() {
+    this.shouldStop = true;
     if (this.client) {
+      this.client.removeAllListeners();
       this.client.end();
       this.client = null;
       this.token = null;
@@ -275,8 +351,10 @@ class MalachiMQConsumer {
       messagesAcked: this.ackedCount,
       messagesNacked: this.nackedCount,
       queueName: this.queueName,
-      connected: this.client !== null,
+      connected: this.client !== null && !this.isReconnecting,
       autoAck: this.autoAck,
+      autoReconnect: this.autoReconnect,
+      reconnectAttempts: this.reconnectAttempts,
     };
   }
 }
@@ -303,6 +381,7 @@ async function main() {
   const args = process.argv.slice(2);
   const verbose = args.includes('--verbose') || args.includes('-v');
   const noAck = args.includes('--no-ack');
+  const noReconnect = args.includes('--no-reconnect');
   const queueName = args.find(a => !a.startsWith('-')) || CONFIG.queueName;
 
   console.log(colors.cyan(`\n📥 MalachiMQ Consumer`));
@@ -311,6 +390,7 @@ async function main() {
   console.log(colors.gray(`   Queue: ${queueName}`));
   console.log(colors.gray(`   Verbose: ${verbose ? 'yes' : 'no'}`));
   console.log(colors.gray(`   Auto-ACK: ${noAck ? 'no' : 'yes'}`));
+  console.log(colors.gray(`   Auto-Reconnect: ${noReconnect ? 'no' : 'yes'}`));
   console.log(colors.yellow(`   Press Ctrl+C to stop\n`));
 
   try {
@@ -318,6 +398,7 @@ async function main() {
       queueName,
       verbose,
       autoAck: !noAck,
+      autoReconnect: !noReconnect,
     });
 
     await consumer.connect();
@@ -336,6 +417,9 @@ async function main() {
       console.log(colors.green(`   Messages acked:    ${stats.messagesAcked}`));
       if (stats.messagesNacked > 0) {
         console.log(colors.red(`   Messages nacked:   ${stats.messagesNacked}`));
+      }
+      if (stats.reconnectAttempts > 0) {
+        console.log(colors.yellow(`   Reconnect attempts: ${stats.reconnectAttempts}`));
       }
       consumer.close();
       process.exit(0);
@@ -360,9 +444,10 @@ ${colors.yellow('Usage:')}
   node consumer.js [options] [queue_name]
 
 ${colors.yellow('Options:')}
-  -h, --help     Show this help message
-  -v, --verbose  Show full message payload and headers
-  --no-ack       Disable automatic message acknowledgment
+  -h, --help       Show this help message
+  -v, --verbose    Show full message payload and headers
+  --no-ack         Disable automatic message acknowledgment
+  --no-reconnect   Disable automatic reconnection on disconnect
 
 ${colors.yellow('Examples:')}
   node consumer.js              # Consume from 'test' queue
@@ -370,6 +455,7 @@ ${colors.yellow('Examples:')}
   node consumer.js -v           # Verbose mode with full payloads
   node consumer.js orders -v    # Consume 'orders' with verbose mode
   node consumer.js --no-ack     # Manual ACK mode (for testing)
+  node consumer.js --no-reconnect  # Disable auto-reconnect
 
 ${colors.yellow('Environment Variables:')}
   MALACHIMQ_HOST   Server host (default: localhost)
@@ -383,6 +469,11 @@ ${colors.yellow('ACK Behavior:')}
   By default, messages are automatically acknowledged after processing.
   Use --no-ack to disable this and handle ACKs manually.
   If processing throws an error, a NACK with requeue is sent.
+
+${colors.yellow('Auto-Reconnect:')}
+  By default, the consumer will automatically reconnect if disconnected.
+  Uses exponential backoff (1s, 2s, 4s... up to 30s) with up to 10 attempts.
+  The server sends a shutdown notification before closing connections.
 `);
 }
 
