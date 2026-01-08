@@ -205,12 +205,3 @@ jobs:
             org.opencontainers.image.licenses=MIT
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/malachimq:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/malachimq:buildcache,mode=max
-
-      - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: ${{ secrets.DOCKER_USERNAME }}/malachimq
-          short-description: "🚀 High-performance message queue built with Elixir/OTP - TLS, Dashboard, Auto-partitioning"
-          readme-filepath: ./DOCKER_README.md
