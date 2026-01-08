@@ -1,8 +1,9 @@
-.PHONY: build run test docker-build docker-run docker-push clean release
+.PHONY: build run test docker-build docker-run docker-push clean release docker-buildx docker-buildx-push docker-buildx-setup
 
 APP_NAME = malachimq
 DOCKER_USERNAME ?= hectorcardoso
 VERSION ?= $(shell grep '@version' mix.exs | head -1 | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
+PLATFORMS ?= linux/amd64,linux/arm64
 
 build:
 	mix deps.get
@@ -21,6 +22,29 @@ release:
 docker-build:
 	docker build -t $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) .
 	docker tag $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) $(DOCKER_USERNAME)/$(APP_NAME):latest
+
+docker-buildx-setup:
+	@echo "Setting up Docker Buildx..."
+	docker buildx create --name $(APP_NAME)-builder --use --bootstrap || docker buildx use $(APP_NAME)-builder
+	docker buildx inspect --bootstrap
+
+docker-buildx:
+	@echo "Building multi-platform Docker image ($(PLATFORMS))..."
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		-t $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) \
+		-t $(DOCKER_USERNAME)/$(APP_NAME):latest \
+		--load \
+		.
+
+docker-buildx-push:
+	@echo "Building and pushing multi-platform Docker image ($(PLATFORMS))..."
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		-t $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION) \
+		-t $(DOCKER_USERNAME)/$(APP_NAME):latest \
+		--push \
+		.
 
 docker-run:
 	docker run -d \
