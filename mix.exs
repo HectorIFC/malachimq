@@ -8,7 +8,7 @@ defmodule MalachiMQ.MixProject do
     [
       app: :malachimq,
       version: @version,
-      elixir: "~> 1.16",
+      elixir: "~> 1.16 or ~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       releases: releases(),

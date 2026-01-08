@@ -15,6 +15,7 @@
 - 🔄 **Acknowledgment System** - Reliable message delivery with ack/nack
 - 🌐 **Multi-language Support** - i18n support (en_US, pt_BR)
 - 🐳 **Production Ready** - Debian-based image with glibc
+- 🏗️ **Multi-Architecture** - Supports AMD64 and ARM64 (Apple Silicon, AWS Graviton)
 
 ---
 
@@ -36,9 +37,20 @@ docker run -d \
   hectorcardoso/malachimq:latest
 ```
 
+**Note**: The image automatically detects your platform (AMD64 or ARM64) and uses the appropriate build.
+
 ### Access the dashboard
 
 Open [http://localhost:4041](http://localhost:4041) in your browser.
+
+---
+
+## Supported Platforms
+
+| Architecture | Status | Notes |
+|--------------|--------|-------|
+| `linux/amd64` | ✅ Supported | x86_64 (Intel/AMD) |
+| `linux/arm64` | ✅ Supported | Apple Silicon (M1/M2/M3), AWS Graviton |
 
 ---
 

@@ -12,7 +12,9 @@ Watch MalachiMQ in action:
 
 [![MalachiMQ Demo](https://img.youtube.com/vi/hn26zgRoOUI/0.jpg)](https://www.youtube.com/watch?v=hn26zgRoOUI)
 
-## �🚀 Quick Start with Docker
+## 🚀 Quick Start with Docker
+
+**Multi-Architecture Support**: Works on AMD64 (Intel/AMD) and ARM64 (Apple Silicon, AWS Graviton)
 
 ### Pull and Run
 
@@ -36,6 +38,22 @@ docker-compose up -d
 ```
 
 Access the dashboard at: http://localhost:4041
+
+### Build Locally (All Platforms)
+
+```bash
+# Build for your current architecture
+make docker-build
+
+# Build for multiple architectures (requires Docker Buildx)
+make docker-buildx-setup
+make docker-buildx
+
+# Build and push to Docker Hub (multi-arch)
+make docker-buildx-push
+```
+
+See [Multi-Architecture Build Guide](docs/MULTI_ARCH_BUILD.md) for detailed instructions.
 
 ## 📦 Ports
 
