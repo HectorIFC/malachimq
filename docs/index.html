@@ -77,7 +77,7 @@
                         <span class="code-title">Terminal</span>
                     </div>
                     <pre class="code-content"><code><span class="comment"># Pull and run with Docker</span>
-<span class="command">docker</span> run -d \
+<span class="command">docker</span> run \
   --name malachimq \
   -p 4040:4040 \
   -p 4041:4041 \
@@ -161,12 +161,33 @@
             <p class="section-subtitle">Get up and running in under a minute</p>
             
             <div class="tabs">
-                <button class="tab active" data-tab="docker">Docker</button>
-                <button class="tab" data-tab="elixir">Elixir</button>
+                <button class="tab active" data-tab="docker-run">Docker</button>
+                <button class="tab" data-tab="docker-compose">Docker Compose</button>
                 <button class="tab" data-tab="client">Node.js Client</button>
             </div>
             
-            <div class="tab-content active" id="docker">
+            <div class="tab-content active" id="docker-run">
+                <div class="code-window large">
+                    <div class="code-header">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                        <span class="code-title">Terminal</span>
+                    </div>
+                    <pre class="code-content"><code><span class="command">docker run</span> \
+  --name malachimq \
+  -p <span class="number">4040</span>:<span class="number">4040</span> \
+  -p <span class="number">4041</span>:<span class="number">4041</span> \
+  hectorcardoso/malachimq:latest</code></pre>
+                </div>
+                <div class="code-actions">
+                    <button class="btn btn-sm" onclick="copyCode('docker run --name malachimq -p 4040:4040 -p 4041:4041 hectorcardoso/malachimq:latest')">
+                        📋 Copy Command
+                    </button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="docker-compose">
                 <div class="code-window large">
                     <div class="code-header">
                         <span class="dot red"></span>
@@ -180,7 +201,7 @@
   <span class="key">malachimq</span>:
     <span class="key">image</span>: hectorcardoso/malachimq:latest
     <span class="key">ports</span>:
-      - <span class="string">"4040:4040"</span>  <span class="comment"># TCP Server</span>
+      - <span class="string">"4040:4040"</span>  <span class="comment"># Broker</span>
       - <span class="string">"4041:4041"</span>  <span class="comment"># Dashboard</span>
     <span class="key">environment</span>:
       - <span class="key">MALACHIMQ_ADMIN_PASS</span>=<span class="string">secure_password</span>
@@ -193,22 +214,7 @@
                 </div>
             </div>
             
-            <div class="tab-content" id="elixir">
-                <div class="code-window large">
-                    <div class="code-header">
-                        <span class="dot red"></span>
-                        <span class="dot yellow"></span>
-                        <span class="dot green"></span>
-                        <span class="code-title">mix.exs</span>
-                    </div>
-                    <pre class="code-content"><code><span class="keyword">defp</span> <span class="function">deps</span> <span class="keyword">do</span>
-  [
-    {<span class="atom">:malachimq</span>, <span class="string">"~> 0.1.0"</span>}
-  ]
-<span class="keyword">end</span></code></pre>
-                </div>
-                <p class="code-note">Then run: <code>mix deps.get && mix run --no-halt</code></p>
-            </div>
+
             
             <div class="tab-content" id="client">
                 <div class="code-window large">

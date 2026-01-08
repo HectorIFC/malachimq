@@ -30,7 +30,7 @@ docker pull hectorcardoso/malachimq:latest
 ### Run with default settings
 
 ```bash
-docker run -d \
+docker run \
   --name malachimq \
   -p 4040:4040 \
   -p 4041:4041 \
@@ -81,7 +81,7 @@ Open [http://localhost:4041](http://localhost:4041) in your browser.
 ### TLS Configuration
 
 ```bash
-docker run -d \
+docker run \
   --name malachimq \
   -p 4040:4040 \
   -p 4041:4041 \

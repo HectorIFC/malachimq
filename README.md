@@ -41,7 +41,7 @@ Watch MalachiMQ in action:
 ```bash
 docker pull hectorcardoso/malachimq:latest
 
-docker run -d \
+docker run \
   --name malachimq \
   -p 4040:4040 \
   -p 4041:4041 \
@@ -117,7 +117,7 @@ MalachiMQ requires authentication for all producers and consumers.
 ### Custom Users
 
 ```bash
-docker run -d \
+docker run \
   -e MALACHIMQ_DEFAULT_USERS="user1:pass1:produce,consume;user2:pass2:admin" \
   hectorcardoso/malachimq:latest
 ```
@@ -141,7 +141,7 @@ Permissions: `admin`, `produce`, `consume`
 #### 2. Run with TLS Enabled
 
 ```bash
-docker run -d \
+docker run \
   -p 4040:4040 \
   -v $(pwd)/priv/cert:/certs \
   -e MALACHIMQ_ENABLE_TLS=true \
