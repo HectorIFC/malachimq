@@ -3,7 +3,7 @@ FROM elixir:1.17-otp-27-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git build-essential && \
+    apt-get install -y --no-install-recommends git build-essential ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 ENV MIX_ENV=prod
