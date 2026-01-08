@@ -47,7 +47,7 @@ docker-buildx-push:
 		.
 
 docker-run:
-	docker run -d \
+	docker run \
 		--name $(APP_NAME) \
 		-p 4040:4040 \
 		-p 4041:4041 \
