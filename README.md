@@ -5,6 +5,26 @@ High-performance message queue system built with Elixir/OTP.
 [![CI](https://github.com/HectorIFC/malachimq/actions/workflows/ci.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/ci.yml)
 [![Release](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml)
 [![Docker Image](https://img.shields.io/docker/v/hectorcardoso/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcardoso/malachimq)
+[![Sponsor](https://img.shields.io/badge/sponsor-❤-ff69b4)](https://github.com/sponsors/HectorIFC)
+
+## 💖 Sponsors
+
+Become a sponsor and get your logo on our README on GitHub with a link to your site. [[Become a sponsor](https://github.com/sponsors/HectorIFC)]
+
+<!-- sponsors -->
+<!-- Add sponsor logos here as they join -->
+<!-- Example: <a href="https://sponsor-site.com"><img src="https://sponsor-logo.png" width="64"></a> -->
+<!-- sponsors -->
+
+### Backers
+
+Support us with a monthly donation and help us continue our activities. [[Become a backer](https://github.com/sponsors/HectorIFC)]
+
+<!-- backers -->
+<!-- Add backer avatars here as they join -->
+<!-- backers -->
+
+---
 
 ## Demo
 
