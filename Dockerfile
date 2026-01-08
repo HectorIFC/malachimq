@@ -1,4 +1,4 @@
-FROM elixir:1.16-otp-26-slim AS builder
+FROM elixir:1.17-otp-27-slim AS builder
 
 WORKDIR /app
 
@@ -7,6 +7,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ENV MIX_ENV=prod
+# Fix for SSL issues when building under QEMU emulation for ARM64
+ENV ERL_FLAGS="+JPperf true"
 
 COPY mix.exs mix.lock ./
 RUN mix local.hex --force && \
