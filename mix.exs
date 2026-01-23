@@ -15,7 +15,7 @@ defmodule MalachiMQ.MixProject do
       description: description(),
       package: package(),
       source_url: @source_url,
-      test_coverage: [tool: ExCoveralls, threshold: 15]
+      test_coverage: [tool: ExCoveralls, threshold: 75]
     ]
   end
 
