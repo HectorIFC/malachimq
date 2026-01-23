@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ['**']  # Run on all branches
+    branches: ['**']
   pull_request:
-    branches: ['**']  # Run on all PRs
+    branches: ['**']
 
 env:
   MIX_ENV: test
@@ -19,17 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Latest stable
-          - elixir: '1.18.1'
-            otp: '27.2'
+          - elixir: '1.19.4'
+            otp: '28.1'
             lint: true
             coverage: true
-          # Previous stable
-          - elixir: '1.17.3'
-            otp: '27.1'
-          # Minimum supported version (matches mix.exs ~> 1.16)
-          - elixir: '1.16.3'
-            otp: '26.2'
     
     steps:
       - name: 📥 Checkout code
@@ -102,8 +95,8 @@ jobs:
       - name: 🔧 Setup Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.16.0'
-          otp-version: '26.2'
+          elixir-version: '1.19.4'
+          otp-version: '28.1'
       
       - name: 📦 Cache dependencies
         uses: actions/cache@v3
@@ -181,13 +174,13 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for better analysis
+          fetch-depth: 0
       
       - name: 🔧 Setup Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.16.0'
-          otp-version: '26.2'
+          elixir-version: '1.19.4'
+          otp-version: '28.1'
       
       - name: 📦 Cache dependencies
         uses: actions/cache@v3
