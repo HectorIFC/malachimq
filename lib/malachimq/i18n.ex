@@ -181,6 +181,22 @@ defmodule MalachiMQ.I18n do
     graceful_shutdown: %{
       "pt_BR" => "⏳ Iniciando shutdown gracioso...",
       "en_US" => "⏳ Starting graceful shutdown..."
+    },
+    queue_config_started: %{
+      "pt_BR" => "✅ Sistema de configuração de filas iniciado",
+      "en_US" => "✅ Queue configuration system started"
+    },
+    queue_created: %{
+      "pt_BR" => "📋 Fila '%{queue}' criada com modo %{mode}",
+      "en_US" => "📋 Queue '%{queue}' created with mode %{mode}"
+    },
+    queue_created_implicitly: %{
+      "pt_BR" => "⚠️ Fila '%{queue}' criada implicitamente com modo %{mode}",
+      "en_US" => "⚠️ Queue '%{queue}' created implicitly with mode %{mode}"
+    },
+    queue_deleted: %{
+      "pt_BR" => "🗑️  Fila '%{queue}' removida",
+      "en_US" => "🗑️  Queue '%{queue}' deleted"
     }
   }
 

@@ -89,8 +89,16 @@ defmodule MalachiMQ.Metrics do
         0
       end
 
+    config =
+      if Code.ensure_loaded?(MalachiMQ.QueueConfig) and Process.whereis(MalachiMQ.QueueConfig) do
+        MalachiMQ.QueueConfig.get_config(queue_name)
+      else
+        %{delivery_mode: :at_least_once}
+      end
+
     %{
       queue: queue_name,
+      delivery_mode: config.delivery_mode,
       enqueued: enqueued,
       processed: processed,
       errors: errors,

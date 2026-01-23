@@ -35,6 +35,8 @@ defmodule MalachiMQ.Consumer do
   def handle_info({:queue_message, message}, state) do
     _start_time = System.monotonic_time(:microsecond)
 
+    config = MalachiMQ.QueueConfig.get_config(state.queue_name)
+
     try do
       result = state.callback.(message)
 
@@ -42,7 +44,8 @@ defmodule MalachiMQ.Consumer do
       MalachiMQ.Metrics.record_latency(state.queue_name, latency)
       MalachiMQ.Metrics.increment_processed(state.queue_name)
 
-      if Process.whereis(MalachiMQ.AckManager) do
+      # Only handle acks for at_least_once delivery mode
+      if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
         case result do
           :error ->
             MalachiMQ.AckManager.nack(message.id, requeue: true)
@@ -59,7 +62,8 @@ defmodule MalachiMQ.Consumer do
         Logger.error(I18n.t(:processing_error, error: inspect(e)))
         MalachiMQ.Metrics.increment_errors(state.queue_name)
 
-        if Process.whereis(MalachiMQ.AckManager) do
+        # Only handle nacks for at_least_once delivery mode
+        if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
           MalachiMQ.AckManager.nack(message.id, requeue: true)
         end
     end
