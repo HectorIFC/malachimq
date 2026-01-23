@@ -3,7 +3,7 @@ defmodule MalachiMQ.TCPAcceptorPoolTest do
 
   describe "start_link/1" do
     test "fails with invalid port" do
-      result = MalachiMQ.TCPAcceptorPool.start_link(99999999)
+      result = MalachiMQ.TCPAcceptorPool.start_link(99_999_999)
       assert {:error, _} = result
     end
 
@@ -11,7 +11,7 @@ defmodule MalachiMQ.TCPAcceptorPoolTest do
       # Try to start on the same port as the running application
       port = Application.get_env(:malachimq, :tcp_port, 4040)
       result = MalachiMQ.TCPAcceptorPool.start_link(port)
-      
+
       # Should fail because port is already in use
       assert {:error, _} = result
     end
@@ -61,6 +61,7 @@ defmodule MalachiMQ.TCPAcceptorPoolTest do
         children when is_list(children) ->
           # Should have multiple acceptor children
           assert length(children) > 0
+
         _ ->
           :ok
       end

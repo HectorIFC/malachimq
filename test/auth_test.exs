@@ -5,6 +5,7 @@ defmodule MalachiMQ.AuthTest do
     on_exit(fn ->
       :timer.sleep(50)
     end)
+
     :ok
   end
 
@@ -26,7 +27,7 @@ defmodule MalachiMQ.AuthTest do
     test "creates unique tokens for each authentication" do
       {:ok, token1} = MalachiMQ.Auth.authenticate("admin", "admin123")
       {:ok, token2} = MalachiMQ.Auth.authenticate("admin", "admin123")
-      
+
       assert token1 != token2
     end
   end
@@ -34,7 +35,7 @@ defmodule MalachiMQ.AuthTest do
   describe "validate_token/1" do
     test "validates a valid token" do
       {:ok, token} = MalachiMQ.Auth.authenticate("admin", "admin123")
-      
+
       assert {:ok, session} = MalachiMQ.Auth.validate_token(token)
       assert session.username == "admin"
       assert :admin in session.permissions
@@ -46,22 +47,22 @@ defmodule MalachiMQ.AuthTest do
 
     test "rejects expired token" do
       Application.put_env(:malachimq, :session_timeout_ms, 100)
-      
+
       {:ok, token} = MalachiMQ.Auth.authenticate("admin", "admin123")
       :timer.sleep(150)
-      
+
       assert {:error, :session_expired} = MalachiMQ.Auth.validate_token(token)
-      
+
       Application.delete_env(:malachimq, :session_timeout_ms)
     end
 
     test "validates tokens for different users" do
       {:ok, admin_token} = MalachiMQ.Auth.authenticate("admin", "admin123")
       {:ok, producer_token} = MalachiMQ.Auth.authenticate("producer", "producer123")
-      
+
       {:ok, admin_session} = MalachiMQ.Auth.validate_token(admin_token)
       {:ok, producer_session} = MalachiMQ.Auth.validate_token(producer_token)
-      
+
       assert admin_session.username == "admin"
       assert producer_session.username == "producer"
       assert :admin in admin_session.permissions
@@ -72,7 +73,7 @@ defmodule MalachiMQ.AuthTest do
   describe "logout/1" do
     test "invalidates a session token" do
       {:ok, token} = MalachiMQ.Auth.authenticate("admin", "admin123")
-      
+
       assert :ok = MalachiMQ.Auth.logout(token)
       assert {:error, :invalid_token} = MalachiMQ.Auth.validate_token(token)
     end
@@ -86,7 +87,7 @@ defmodule MalachiMQ.AuthTest do
     test "adds a new user" do
       username = "newuser_#{:rand.uniform(10000)}"
       assert :ok = MalachiMQ.Auth.add_user(username, "password123", [:produce])
-      
+
       assert {:ok, _token} = MalachiMQ.Auth.authenticate(username, "password123")
     end
 
@@ -99,10 +100,10 @@ defmodule MalachiMQ.AuthTest do
     test "creates user with custom permissions" do
       username = "custom_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "pass", [:admin, :produce])
-      
+
       {:ok, token} = MalachiMQ.Auth.authenticate(username, "pass")
       {:ok, session} = MalachiMQ.Auth.validate_token(token)
-      
+
       assert :admin in session.permissions
       assert :produce in session.permissions
     end
@@ -110,10 +111,10 @@ defmodule MalachiMQ.AuthTest do
     test "uses default permissions when not specified" do
       username = "default_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "pass")
-      
+
       {:ok, token} = MalachiMQ.Auth.authenticate(username, "pass")
       {:ok, session} = MalachiMQ.Auth.validate_token(token)
-      
+
       assert :produce in session.permissions
       assert :consume in session.permissions
     end
@@ -123,7 +124,7 @@ defmodule MalachiMQ.AuthTest do
     test "removes an existing user" do
       username = "toremove_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "pass", [:produce])
-      
+
       assert :ok = MalachiMQ.Auth.remove_user(username)
       assert {:error, :invalid_credentials} = MalachiMQ.Auth.authenticate(username, "pass")
     end
@@ -132,10 +133,10 @@ defmodule MalachiMQ.AuthTest do
       username = "removewithsession_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "pass", [:produce])
       {:ok, token} = MalachiMQ.Auth.authenticate(username, "pass")
-      
+
       MalachiMQ.Auth.remove_user(username)
       :timer.sleep(50)
-      
+
       assert {:error, :invalid_token} = MalachiMQ.Auth.validate_token(token)
     end
 
@@ -148,9 +149,9 @@ defmodule MalachiMQ.AuthTest do
     test "changes user password" do
       username = "changepass_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "oldpass", [:produce])
-      
+
       assert :ok = MalachiMQ.Auth.change_password(username, "newpass")
-      
+
       assert {:error, :invalid_credentials} = MalachiMQ.Auth.authenticate(username, "oldpass")
       assert {:ok, _token} = MalachiMQ.Auth.authenticate(username, "newpass")
     end
@@ -162,11 +163,11 @@ defmodule MalachiMQ.AuthTest do
     test "preserves permissions after password change" do
       username = "preserveperms_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "oldpass", [:admin])
-      
+
       MalachiMQ.Auth.change_password(username, "newpass")
       {:ok, token} = MalachiMQ.Auth.authenticate(username, "newpass")
       {:ok, session} = MalachiMQ.Auth.validate_token(token)
-      
+
       assert :admin in session.permissions
     end
   end
@@ -174,10 +175,10 @@ defmodule MalachiMQ.AuthTest do
   describe "list_users/0" do
     test "lists all users without passwords" do
       users = MalachiMQ.Auth.list_users()
-      
+
       assert is_list(users)
       assert length(users) >= 4
-      
+
       admin_user = Enum.find(users, &(&1.username == "admin"))
       assert admin_user != nil
       assert :admin in admin_user.permissions
@@ -187,10 +188,10 @@ defmodule MalachiMQ.AuthTest do
     test "includes newly added users" do
       username = "listtest_#{:rand.uniform(10000)}"
       MalachiMQ.Auth.add_user(username, "pass", [:consume])
-      
+
       users = MalachiMQ.Auth.list_users()
       new_user = Enum.find(users, &(&1.username == username))
-      
+
       assert new_user != nil
       assert :consume in new_user.permissions
     end

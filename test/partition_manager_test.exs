@@ -5,17 +5,18 @@ defmodule MalachiMQ.PartitionManagerTest do
     test "returns consistent partition for same queue name" do
       {name, partition1} = MalachiMQ.PartitionManager.get_partition("test_queue")
       {name, partition2} = MalachiMQ.PartitionManager.get_partition("test_queue")
-      
+
       assert partition1 == partition2
       assert name == "test_queue"
     end
 
     test "distributes different queues across partitions" do
-      partitions = for i <- 1..100 do
-        {_name, partition} = MalachiMQ.PartitionManager.get_partition("queue_#{i}")
-        partition
-      end
-      
+      partitions =
+        for i <- 1..100 do
+          {_name, partition} = MalachiMQ.PartitionManager.get_partition("queue_#{i}")
+          partition
+        end
+
       unique_partitions = Enum.uniq(partitions)
       assert length(unique_partitions) > 1
     end
@@ -38,7 +39,7 @@ defmodule MalachiMQ.PartitionManagerTest do
       schedulers = System.schedulers_online()
       multiplier = Application.get_env(:malachimq, :partition_multiplier, 100)
       expected = schedulers * multiplier
-      
+
       assert MalachiMQ.PartitionManager.get_partition_count() == expected
     end
   end
