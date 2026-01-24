@@ -350,7 +350,7 @@ defmodule MalachiMQ.ConnectionRegistryTest do
     end
 
     test "sends shutdown notification to clients", %{socket: _socket} do
-      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, packet: :line, active: false, reuseaddr: true])
+      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, packet: 0, active: false, reuseaddr: true])
       {:ok, port} = :inet.port(listen_socket)
 
       test_pid = self()
@@ -367,7 +367,7 @@ defmodule MalachiMQ.ConnectionRegistryTest do
         end
       end)
 
-      {:ok, socket} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, packet: :line, active: false])
+      {:ok, socket} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, packet: 0, active: false])
 
       pid =
         spawn(fn ->

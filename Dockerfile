@@ -1,4 +1,4 @@
-FROM elixir:1.17-otp-27-slim AS builder
+FROM elixir:1.19-otp-28-slim AS builder
 
 WORKDIR /app
 
@@ -7,7 +7,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ENV MIX_ENV=prod
-# Fix for SSL issues when building under QEMU emulation for ARM64
 ENV ERL_FLAGS="+JPperf true"
 
 COPY mix.exs mix.lock ./
@@ -22,7 +21,7 @@ COPY lib lib
 RUN mix compile && \
     mix release
 
-FROM debian:bookworm-slim AS runner
+FROM debian:trixie-slim AS runner
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -30,7 +29,8 @@ RUN apt-get update && \
         libncurses6 \
         openssl \
         ca-certificates \
-        locales && \
+        locales \
+        libargon2-1 && \
     rm -rf /var/lib/apt/lists/* && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen

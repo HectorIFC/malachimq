@@ -29,6 +29,7 @@ defmodule MalachiMQ.Application do
       {DynamicSupervisor, name: MalachiMQ.QueueSupervisor, strategy: :one_for_one, max_children: 100_000},
       {Task.Supervisor, name: MalachiMQ.TaskSupervisor, max_children: 10_000},
       MalachiMQ.PartitionManager,
+      MalachiMQ.QueueConfig,
       MalachiMQ.Metrics,
       MalachiMQ.Auth,
       MalachiMQ.AckManager,

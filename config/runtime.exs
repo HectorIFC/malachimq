@@ -14,7 +14,8 @@ config :malachimq,
   enable_tls: System.get_env("MALACHIMQ_ENABLE_TLS") == "true",
   tls_certfile: System.get_env("MALACHIMQ_TLS_CERTFILE"),
   tls_keyfile: System.get_env("MALACHIMQ_TLS_KEYFILE"),
-  tls_cacertfile: System.get_env("MALACHIMQ_TLS_CACERTFILE")
+  tls_cacertfile: System.get_env("MALACHIMQ_TLS_CACERTFILE"),
+  default_delivery_mode: System.get_env("MALACHIMQ_DEFAULT_DELIVERY_MODE") || "at_least_once"
 
 default_users_env = System.get_env("MALACHIMQ_DEFAULT_USERS")
 

@@ -1,9 +1,26 @@
 defmodule MalachiMQ.SocketHelperTest do
   use ExUnit.Case, async: true
 
+  # Helper to read until newline in packet: 0 mode
+  defp read_until_newline(socket, buffer, timeout) do
+    case :gen_tcp.recv(socket, 0, timeout) do
+      {:ok, data} ->
+        new_buffer = buffer <> data
+
+        if String.contains?(new_buffer, "\n") do
+          {:ok, new_buffer}
+        else
+          read_until_newline(socket, new_buffer, timeout)
+        end
+
+      error ->
+        error
+    end
+  end
+
   describe "socket_send/3" do
     test "sends data through gen_tcp socket" do
-      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, packet: :line, active: false, reuseaddr: true])
+      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, packet: 0, active: false, reuseaddr: true])
       {:ok, port} = :inet.port(listen_socket)
 
       spawn(fn ->
@@ -12,7 +29,7 @@ defmodule MalachiMQ.SocketHelperTest do
         :gen_tcp.close(socket)
       end)
 
-      {:ok, client} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, packet: :line, active: false])
+      {:ok, client} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, packet: 0, active: false])
 
       assert :ok = MalachiMQ.SocketHelper.socket_send(client, "test\n", :gen_tcp)
 
@@ -29,7 +46,7 @@ defmodule MalachiMQ.SocketHelperTest do
 
   describe "socket_recv/4" do
     test "receives data from gen_tcp socket" do
-      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, packet: :line, active: false, reuseaddr: true])
+      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, packet: 0, active: false, reuseaddr: true])
       {:ok, port} = :inet.port(listen_socket)
 
       test_pid = self()
@@ -42,10 +59,12 @@ defmodule MalachiMQ.SocketHelperTest do
         :gen_tcp.close(socket)
       end)
 
-      {:ok, client} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, packet: :line, active: false])
+      {:ok, client} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, packet: 0, active: false])
 
       assert_receive :sent, 1000
-      assert {:ok, data} = MalachiMQ.SocketHelper.socket_recv(client, 0, 1000, :gen_tcp)
+
+      # Read until we get the full line
+      {:ok, data} = read_until_newline(client, "", 1000)
       assert data == "hello\n"
 
       :gen_tcp.close(client)

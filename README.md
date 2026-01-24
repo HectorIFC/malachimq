@@ -291,8 +291,10 @@ node producer.js 10
 
 ### Prerequisites
 
-- Elixir 1.16+
-- Erlang/OTP 26+
+- Elixir 1.19+
+- Erlang/OTP 28+
+
+**Note**: While MalachiMQ is optimized for Elixir 1.19+ and OTP 28+, it may work with earlier versions (1.16+/OTP 26+) but is not officially tested or supported.
 
 ### Run Locally
 

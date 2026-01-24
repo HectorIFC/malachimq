@@ -330,6 +330,146 @@ defmodule MalachiMQ.TCPAcceptor do
           :ok
         end
 
+      {:ok, %{"action" => "create_queue", "queue_name" => q} = msg} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :admin) do
+          delivery_mode =
+            case Map.get(msg, "delivery_mode") do
+              "at_most_once" -> :at_most_once
+              "at_least_once" -> :at_least_once
+              nil -> :at_least_once
+              _ -> :invalid
+            end
+
+          if delivery_mode == :invalid do
+            send_data(socket, ~s({"s":"err","reason":"invalid_delivery_mode"}\n), transport)
+          else
+            opts = [delivery_mode: delivery_mode]
+
+            opts =
+              if max_retries = Map.get(msg, "max_retries") do
+                Keyword.put(opts, :max_retries, max_retries)
+              else
+                opts
+              end
+
+            opts =
+              if Map.has_key?(msg, "dlq_enabled") do
+                Keyword.put(opts, :dlq_enabled, Map.get(msg, "dlq_enabled"))
+              else
+                opts
+              end
+
+            case MalachiMQ.QueueConfig.create_queue(q, opts) do
+              {:ok, config} ->
+                response =
+                  Jason.encode!(%{
+                    "s" => "ok",
+                    "config" => %{
+                      "queue_name" => config.queue_name,
+                      "delivery_mode" => to_string(config.delivery_mode),
+                      "max_retries" => config.max_retries,
+                      "dlq_enabled" => config.dlq_enabled
+                    }
+                  })
+
+                send_data(socket, response <> "\n", transport)
+
+              {:error, :queue_already_exists} ->
+                send_data(socket, ~s({"s":"err","reason":"queue_already_exists"}\n), transport)
+
+              {:error, reason} ->
+                send_data(socket, ~s({"s":"err","reason":"#{reason}"}\n), transport)
+            end
+          end
+
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "delete_queue", "queue_name" => q} = msg} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :admin) do
+          force = Map.get(msg, "force", false)
+
+          case MalachiMQ.QueueConfig.delete_queue(q, force: force) do
+            :ok ->
+              send_data(socket, ~s({"s":"ok"}\n), transport)
+
+            {:error, :queue_not_found} ->
+              send_data(socket, ~s({"s":"err","reason":"queue_not_found"}\n), transport)
+
+            {:error, :queue_has_active_consumers} ->
+              send_data(socket, ~s({"s":"err","reason":"queue_has_active_consumers"}\n), transport)
+
+            {:error, :queue_has_buffered_messages} ->
+              send_data(socket, ~s({"s":"err","reason":"queue_has_buffered_messages"}\n), transport)
+
+            {:error, reason} ->
+              send_data(socket, ~s({"s":"err","reason":"#{reason}"}\n), transport)
+          end
+
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "get_queue_info", "queue_name" => q}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :admin) or
+             MalachiMQ.Auth.has_permission?(session.permissions, :produce) or
+             MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          config = MalachiMQ.QueueConfig.get_config(q)
+          stats = MalachiMQ.Queue.get_stats(q)
+
+          response =
+            Jason.encode!(%{
+              "s" => "ok",
+              "queue_info" => %{
+                "queue_name" => config.queue_name,
+                "delivery_mode" => to_string(config.delivery_mode),
+                "max_retries" => config.max_retries,
+                "dlq_enabled" => config.dlq_enabled,
+                "implicit" => Map.get(config, :implicit, false),
+                "stats" => %{
+                  "consumers" => stats.consumers,
+                  "producers" => stats.producers,
+                  "buffered" => stats.buffered,
+                  "partition" => stats.partition
+                }
+              }
+            })
+
+          send_data(socket, response <> "\n", transport)
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "list_queues"}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :admin) do
+          queues = MalachiMQ.QueueConfig.list_queues()
+
+          queue_list =
+            Enum.map(queues, fn config ->
+              %{
+                "queue_name" => config.queue_name,
+                "delivery_mode" => to_string(config.delivery_mode),
+                "max_retries" => config.max_retries,
+                "dlq_enabled" => config.dlq_enabled,
+                "implicit" => Map.get(config, :implicit, false)
+              }
+            end)
+
+          response = Jason.encode!(%{"s" => "ok", "queues" => queue_list})
+          send_data(socket, response <> "\n", transport)
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
       _ ->
         send_data(socket, ~s({"s":"err","reason":"invalid_request"}\n), transport)
         :ok

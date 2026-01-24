@@ -38,12 +38,14 @@ defmodule MalachiMQ.Benchmark do
     duration = System.monotonic_time(:millisecond) - start_time
 
     Logger.info(I18n.t(:consumers_created, count: count, duration: duration))
-    Logger.info(I18n.t(:consumers_rate, rate: round(count / (duration / 1000))))
+    rate = if duration > 0, do: round(count / (duration / 1000)), else: count
+    Logger.info(I18n.t(:consumers_rate, rate: rate))
 
     :erlang.garbage_collect()
     memory_mb = :erlang.memory(:total) / 1_048_576
     Logger.info(I18n.t(:total_memory, memory: Float.round(memory_mb, 2)))
-    Logger.info(I18n.t(:memory_per_consumer, memory: round(memory_mb * 1024 / count)))
+    memory_per = if count > 0, do: round(memory_mb * 1024 / count), else: 0
+    Logger.info(I18n.t(:memory_per_consumer, memory: memory_per))
   end
 
   def send_messages(queue_name, count) do
@@ -68,7 +70,8 @@ defmodule MalachiMQ.Benchmark do
     duration = System.monotonic_time(:millisecond) - start_time
 
     Logger.info(I18n.t(:messages_sent, count: count, duration: duration))
-    Logger.info(I18n.t(:messages_rate, rate: round(count / (duration / 1000))))
+    rate = if duration > 0, do: round(count / (duration / 1000)), else: count
+    Logger.info(I18n.t(:messages_rate, rate: rate))
   end
 
   def system_info do

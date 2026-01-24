@@ -24,6 +24,9 @@ defmodule MalachiMQ.Queue do
 
     ensure_started({name, partition})
 
+    # Ensure queue configuration exists (creates implicitly if needed)
+    _config = MalachiMQ.QueueConfig.get_config(queue_name)
+
     # Register producer for stats tracking
     GenServer.cast(via_tuple({name, partition}), {:register_producer, self()})
 
@@ -41,7 +44,7 @@ defmodule MalachiMQ.Queue do
 
     consumers_table = consumers_name({name, partition})
 
-    case dispatch_from_ets(consumers_table, message) do
+    case dispatch_from_ets(consumers_table, message, queue_name) do
       :dispatched ->
         :ok
 
@@ -277,13 +280,16 @@ defmodule MalachiMQ.Queue do
     end
   end
 
-  defp dispatch_from_ets(consumers_table, message) do
+  defp dispatch_from_ets(consumers_table, message, queue_name) do
     case :ets.first(consumers_table) do
       :"$end_of_table" ->
         :no_consumers
 
       consumer_pid ->
-        if Process.whereis(MalachiMQ.AckManager) do
+        config = MalachiMQ.QueueConfig.get_config(queue_name)
+
+        # Only track message for at_least_once delivery mode
+        if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
           MalachiMQ.AckManager.track_message(
             message.id,
             message.queue,
@@ -316,8 +322,10 @@ defmodule MalachiMQ.Queue do
       key ->
         case :ets.lookup(buffer_table, key) do
           [{^key, message}] ->
-            # Track message in AckManager before sending
-            if Process.whereis(MalachiMQ.AckManager) do
+            config = MalachiMQ.QueueConfig.get_config(message.queue)
+
+            # Only track message for at_least_once delivery mode
+            if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
               MalachiMQ.AckManager.track_message(
                 message.id,
                 message.queue,
