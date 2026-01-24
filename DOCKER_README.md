@@ -174,10 +174,55 @@ Returns JSON with queue statistics and system metrics.
 | Property | Value |
 |----------|-------|
 | **Base Image** | `debian:bookworm-slim` |
-| **Runtime** | Erlang/OTP 26, Elixir 1.16 |
-| **Architecture** | `linux/amd64` |
+| **Runtime** | Erlang/OTP 28, Elixir 1.19 |
+| **Architecture** | `linux/amd64`, `linux/arm64` |
 | **User** | `malachimq` (UID 1000) |
 | **Workdir** | `/app` |
+| **JIT Compilation** | Enabled (`+JPperf true`) |
+| **Runtime Dependencies** | `libargon2-1`, `openssl`, `libstdc++6` |
+
+---
+
+## Testing & Validation
+
+The Docker image includes comprehensive testing scripts:
+
+### Build Validation
+
+```bash
+# Validates runtime dependencies, JIT configuration, and performance benchmarks
+make docker-validate
+```
+
+Checks:
+- ✅ Runtime dependencies (libargon2, openssl)
+- ✅ ERL_FLAGS configuration with JIT
+- ✅ Service availability (TCP + Dashboard)
+- ✅ Performance benchmarks with throughput metrics
+- ✅ Memory usage validation
+
+### Regression Testing
+
+```bash
+# Runs comprehensive regression tests
+make docker-regression-test
+```
+
+Tests include:
+- HTTP/SSE endpoints functionality
+- TCP server availability
+- Queue publish/consume workflows
+- High-volume message throughput (10K+ messages)
+- Memory stability under load
+- Concurrent multi-queue operations
+- JIT compilation verification
+
+### Full Test Suite
+
+```bash
+# Build + Validate + Regression tests
+make docker-test-all
+```
 
 ---
 

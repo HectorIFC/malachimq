@@ -1,4 +1,4 @@
-.PHONY: build run test docker-build docker-run docker-push clean release docker-buildx docker-buildx-push docker-buildx-setup
+.PHONY: build run test docker-build docker-run docker-push clean release docker-buildx docker-buildx-push docker-buildx-setup docker-validate docker-regression-test
 
 APP_NAME = malachimq
 DOCKER_USERNAME ?= hectorcardoso
@@ -75,6 +75,17 @@ compose-logs:
 
 compose-producer:
 	docker-compose --profile tools run --rm producer
+
+docker-validate:
+	@echo "Running Docker build validation..."
+	./scripts/validate-docker-build.sh
+
+docker-regression-test:
+	@echo "Running Docker regression tests..."
+	./scripts/docker-regression-test.sh $(DOCKER_USERNAME)/$(APP_NAME):$(VERSION)
+
+docker-test-all: docker-build docker-validate docker-regression-test
+	@echo "All Docker tests completed successfully!"
 
 clean:
 	rm -rf _build deps
