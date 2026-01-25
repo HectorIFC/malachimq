@@ -182,6 +182,26 @@ defmodule MalachiMQ.I18n do
       "pt_BR" => "⏳ Iniciando shutdown gracioso...",
       "en_US" => "⏳ Starting graceful shutdown..."
     },
+    channel_started: %{
+      "pt_BR" => "📢 Canal '%{channel}' iniciado",
+      "en_US" => "📢 Channel '%{channel}' started"
+    },
+    channel_subscriber_added: %{
+      "pt_BR" => "Canal '%{channel}': inscrito %{pid} adicionado (total: %{count})",
+      "en_US" => "Channel '%{channel}': subscriber %{pid} added (total: %{count})"
+    },
+    channel_subscriber_removed: %{
+      "pt_BR" => "Canal '%{channel}': inscrito %{pid} removido (total: %{count})",
+      "en_US" => "Channel '%{channel}': subscriber %{pid} removed (total: %{count})"
+    },
+    channel_subscriber_kicked: %{
+      "pt_BR" => "Canal '%{channel}': inscrito %{pid} removido forçadamente",
+      "en_US" => "Channel '%{channel}': subscriber %{pid} kicked"
+    },
+    channel_subscriber_down: %{
+      "pt_BR" => "Canal '%{channel}': inscrito %{pid} desconectou (total: %{count})",
+      "en_US" => "Channel '%{channel}': subscriber %{pid} disconnected (total: %{count})"
+    },
     queue_config_started: %{
       "pt_BR" => "✅ Sistema de configuração de filas iniciado",
       "en_US" => "✅ Queue configuration system started"

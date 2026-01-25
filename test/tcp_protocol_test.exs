@@ -152,7 +152,7 @@ defmodule MalachiMQ.TCPProtocolTest do
       end)
 
       # Test passes if we could connect at least once
-      assert length(valid_sockets) >= 0
+      assert valid_sockets != []
     end
   end
 end

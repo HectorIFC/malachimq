@@ -28,7 +28,7 @@ defmodule MalachiMQ.TCPAcceptor do
 
   @impl true
   def handle_info(:accept, %{socket: socket, idle_count: idle_count, transport: transport} = state) do
-    timeout = min(100 + idle_count * 50, 30000)
+    timeout = min(100 + idle_count * 50, 30_000)
 
     accept_result =
       case transport do
@@ -114,30 +114,42 @@ defmodule MalachiMQ.TCPAcceptor do
 
     case recv_data(socket, transport, 0, recv_timeout) do
       {:ok, data} ->
-        case Jason.decode(data) do
-          {:ok, %{"action" => "auth", "username" => username, "password" => password}} ->
-            case MalachiMQ.Auth.authenticate(username, password) do
-              {:ok, token} ->
-                case MalachiMQ.Auth.validate_token(token) do
-                  {:ok, session} ->
-                    response = Jason.encode!(%{"s" => "ok", "token" => token})
-                    send_data(socket, response <> "\n", transport)
-                    {:ok, session}
-
-                  {:error, _} ->
-                    {:error, :invalid_token}
-                end
-
-              {:error, _reason} ->
-                {:error, :invalid_credentials}
-            end
-
-          _ ->
-            {:error, :auth_required}
-        end
+        process_auth_data(data, socket, transport)
 
       {:error, _} ->
         {:error, :connection_error}
+    end
+  end
+
+  defp process_auth_data(data, socket, transport) do
+    case Jason.decode(data) do
+      {:ok, %{"action" => "auth", "username" => username, "password" => password}} ->
+        validate_and_authenticate(username, password, socket, transport)
+
+      _ ->
+        {:error, :auth_required}
+    end
+  end
+
+  defp validate_and_authenticate(username, password, socket, transport) do
+    case MalachiMQ.Auth.authenticate(username, password) do
+      {:ok, token} ->
+        validate_token_and_respond(token, socket, transport)
+
+      {:error, _reason} ->
+        {:error, :invalid_credentials}
+    end
+  end
+
+  defp validate_token_and_respond(token, socket, transport) do
+    case MalachiMQ.Auth.validate_token(token) do
+      {:ok, session} ->
+        response = Jason.encode!(%{"s" => "ok", "token" => token})
+        send_data(socket, response <> "\n", transport)
+        {:ok, session}
+
+      {:error, _} ->
+        {:error, :invalid_token}
     end
   end
 
@@ -213,6 +225,20 @@ defmodule MalachiMQ.TCPAcceptor do
       # Queue message received - forward to client
       {:queue_message, message} ->
         json_msg = Jason.encode!(%{"queue_message" => message})
+        send_data(socket, json_msg <> "\n", transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport, buffer)
+
+      # Channel message received - forward to client
+      {:channel_message, message} ->
+        json_msg = Jason.encode!(%{"channel_message" => message})
+        send_data(socket, json_msg <> "\n", transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport, buffer)
+
+      # Kicked from channel - notify client
+      {:kicked_from_channel, channel_name} ->
+        json_msg = Jason.encode!(%{"kicked_from_channel" => channel_name})
         send_data(socket, json_msg <> "\n", transport)
         set_socket_opts(socket, transport, active: :once)
         receive_active_loop(socket, session, transport, buffer)
@@ -463,6 +489,57 @@ defmodule MalachiMQ.TCPAcceptor do
             end)
 
           response = Jason.encode!(%{"s" => "ok", "queues" => queue_list})
+          send_data(socket, response <> "\n", transport)
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "channel_publish", "channel_name" => ch, "payload" => p} = msg} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :produce) do
+          h = Map.get(msg, "headers", %{})
+          MalachiMQ.Channel.publish(ch, p, h)
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :channel_publisher, ch)
+          send_data(socket, ~s({"s":"ok"}\n), transport)
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "channel_subscribe", "channel_name" => ch}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          MalachiMQ.Channel.subscribe(ch, self())
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :channel_subscriber, ch)
+          send_data(socket, ~s({"s":"ok"}\n), transport)
+          :subscribed
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "get_channel_info", "channel_name" => ch}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :admin) or
+             MalachiMQ.Auth.has_permission?(session.permissions, :produce) or
+             MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          stats = MalachiMQ.Channel.get_stats(ch)
+          metrics = MalachiMQ.Metrics.get_channel_metrics(ch)
+
+          response =
+            Jason.encode!(%{
+              "s" => "ok",
+              "channel_info" => %{
+                "channel_name" => ch,
+                "exists" => stats.exists,
+                "subscribers" => stats.subscribers,
+                "published" => metrics.published,
+                "delivered" => metrics.delivered,
+                "dropped" => metrics.dropped,
+                "uptime" => Map.get(stats, :uptime, 0)
+              }
+            })
+
           send_data(socket, response <> "\n", transport)
           :ok
         else
