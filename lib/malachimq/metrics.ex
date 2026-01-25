@@ -54,6 +54,24 @@ defmodule MalachiMQ.Metrics do
     :ok
   end
 
+  def increment_channel_published(channel_name) do
+    key = {:channel_published, channel_name}
+    :ets.update_counter(@metrics_table, key, {2, 1}, {key, 0})
+    :ok
+  end
+
+  def increment_channel_delivered(channel_name, count \\ 1) do
+    key = {:channel_delivered, channel_name}
+    :ets.update_counter(@metrics_table, key, {2, count}, {key, 0})
+    :ok
+  end
+
+  def increment_channel_dropped(channel_name) do
+    key = {:channel_dropped, channel_name}
+    :ets.update_counter(@metrics_table, key, {2, 1}, {key, 0})
+    :ok
+  end
+
   def record_latency(queue_name, latency_us) do
     key = {:latency, queue_name}
 
@@ -117,6 +135,36 @@ defmodule MalachiMQ.Metrics do
 
     Enum.map(queues, fn queue_name ->
       get_metrics(queue_name)
+    end)
+  end
+
+  def get_channel_metrics(channel_name) do
+    published = get_counter({:channel_published, channel_name})
+    delivered = get_counter({:channel_delivered, channel_name})
+    dropped = get_counter({:channel_dropped, channel_name})
+
+    stats =
+      if Code.ensure_loaded?(MalachiMQ.Channel) do
+        MalachiMQ.Channel.get_stats(channel_name)
+      else
+        %{exists: false, subscribers: 0}
+      end
+
+    %{
+      channel: channel_name,
+      published: published,
+      delivered: delivered,
+      dropped: dropped,
+      subscribers: stats[:subscribers] || 0,
+      exists: stats[:exists] || false
+    }
+  end
+
+  def get_all_channel_metrics do
+    channels = get_all_channels()
+
+    Enum.map(channels, fn channel_name ->
+      get_channel_metrics(channel_name)
     end)
   end
 
@@ -222,6 +270,12 @@ defmodule MalachiMQ.Metrics do
   defp get_all_queues do
     :ets.match(@metrics_table, {{:enqueued, :"$1"}, :_})
     |> Enum.map(fn [queue] -> queue end)
+    |> Enum.uniq()
+  end
+
+  defp get_all_channels do
+    :ets.match(@metrics_table, {{:channel_published, :"$1"}, :_})
+    |> Enum.map(fn [channel] -> channel end)
     |> Enum.uniq()
   end
 

@@ -203,12 +203,53 @@ client.on('data', (data) => {
   const response = JSON.parse(data.toString().trim());
   
   if (response.token) {
+    // Publish to queue
+    // Publish to queue
     client.write(JSON.stringify({
       action: 'publish',
       queue_name: 'my-queue',
       payload: { hello: 'world' },
       headers: {}
     }) + '\n');
+    
+    // Or publish to channel (best-effort, no buffering)
+    client.write(JSON.stringify({
+      action: 'channel_publish',
+      channel_name: 'news',
+      payload: { breaking: 'news!' },
+      headers: {}
+    }) + '\n');
+  }
+});
+```
+
+#### Channel Subscribe
+
+```javascript
+// Subscribe to channel
+client.write(JSON.stringify({
+  action: 'channel_subscribe',
+  channel_name: 'news'
+}) + '\n');
+
+// Response: {"s":"ok"}
+
+// Receive messages
+client.on('data', (data) => {
+  const msg = JSON.parse(data.toString().trim());
+  
+  if (msg.channel_message) {
+    console.log('Channel message:', msg.channel_message);
+    // {
+    //   payload: {...},
+    //   headers: {...},
+    //   timestamp: 1234567890,
+    //   channel: "news"
+    // }
+  }
+  
+  if (msg.kicked_from_channel) {
+    console.log('Kicked from:', msg.kicked_from_channel);
   }
 });
 ```
@@ -286,6 +327,75 @@ node consumer.js --verbose
 ```bash
 node producer.js 10
 ```
+
+### Channel Pub/Sub
+
+MalachiMQ supports Pub/Sub channels with best-effort delivery. Messages are broadcast to all active subscribers without persistence.
+
+#### Channel Publisher Script
+
+Publish messages to channels:
+
+```bash
+# Publish 10 messages to 'news' channel (default)
+node channel-publisher.js
+
+# Publish to a specific channel
+node channel-publisher.js sports 20
+
+# Publish continuously (1 msg/second)
+node channel-publisher.js alerts --continuous
+
+# Show help
+node channel-publisher.js --help
+```
+
+#### Channel Subscriber Script
+
+Subscribe to channels and receive messages in real-time:
+
+```bash
+# Subscribe to 'news' channel (default)
+node channel-subscriber.js
+
+# Subscribe to a specific channel
+node channel-subscriber.js sports
+
+# Subscribe to multiple channels
+node channel-subscriber.js news sports alerts
+
+# Verbose mode (show full payloads)
+node channel-subscriber.js --verbose
+
+# Show help
+node channel-subscriber.js --help
+```
+
+#### Channel Behavior
+
+- **Best-effort delivery**: Messages are only delivered to active subscribers
+- **No buffering**: Messages are dropped if no subscribers are connected
+- **Broadcast**: All subscribers receive every message
+- **Real-time**: Messages delivered immediately to connected clients
+
+#### Example: Channel Pub/Sub
+
+**Terminal 1** - Start subscriber:
+```bash
+node channel-subscriber.js news
+```
+
+**Terminal 2** - Publish messages:
+```bash
+node channel-publisher.js news 10
+```
+
+**Terminal 3** - Add another subscriber:
+```bash
+node channel-subscriber.js news sports
+```
+
+**Note**: Subscribers only receive messages published *after* they subscribe. Messages published before subscription are lost (no buffering).
 
 ## 🛠️ Development
 

@@ -217,6 +217,20 @@ defmodule MalachiMQ.TCPAcceptor do
         set_socket_opts(socket, transport, active: :once)
         receive_active_loop(socket, session, transport, buffer)
 
+      # Channel message received - forward to client
+      {:channel_message, message} ->
+        json_msg = Jason.encode!(%{"channel_message" => message})
+        send_data(socket, json_msg <> "\n", transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport, buffer)
+
+      # Kicked from channel - notify client
+      {:kicked_from_channel, channel_name} ->
+        json_msg = Jason.encode!(%{"kicked_from_channel" => channel_name})
+        send_data(socket, json_msg <> "\n", transport)
+        set_socket_opts(socket, transport, active: :once)
+        receive_active_loop(socket, session, transport, buffer)
+
       # Socket closed
       {:tcp_closed, ^socket} ->
         :ok
@@ -463,6 +477,57 @@ defmodule MalachiMQ.TCPAcceptor do
             end)
 
           response = Jason.encode!(%{"s" => "ok", "queues" => queue_list})
+          send_data(socket, response <> "\n", transport)
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "channel_publish", "channel_name" => ch, "payload" => p} = msg} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :produce) do
+          h = Map.get(msg, "headers", %{})
+          MalachiMQ.Channel.publish(ch, p, h)
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :channel_publisher, ch)
+          send_data(socket, ~s({"s":"ok"}\n), transport)
+          :ok
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "channel_subscribe", "channel_name" => ch}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          MalachiMQ.Channel.subscribe(ch, self())
+          MalachiMQ.ConnectionRegistry.set_connection_type(self(), :channel_subscriber, ch)
+          send_data(socket, ~s({"s":"ok"}\n), transport)
+          :subscribed
+        else
+          send_data(socket, ~s({"s":"err","reason":"permission_denied"}\n), transport)
+          :ok
+        end
+
+      {:ok, %{"action" => "get_channel_info", "channel_name" => ch}} ->
+        if MalachiMQ.Auth.has_permission?(session.permissions, :admin) or
+             MalachiMQ.Auth.has_permission?(session.permissions, :produce) or
+             MalachiMQ.Auth.has_permission?(session.permissions, :consume) do
+          stats = MalachiMQ.Channel.get_stats(ch)
+          metrics = MalachiMQ.Metrics.get_channel_metrics(ch)
+
+          response =
+            Jason.encode!(%{
+              "s" => "ok",
+              "channel_info" => %{
+                "channel_name" => ch,
+                "exists" => stats.exists,
+                "subscribers" => stats.subscribers,
+                "published" => metrics.published,
+                "delivered" => metrics.delivered,
+                "dropped" => metrics.dropped,
+                "uptime" => Map.get(stats, :uptime, 0)
+              }
+            })
+
           send_data(socket, response <> "\n", transport)
           :ok
         else

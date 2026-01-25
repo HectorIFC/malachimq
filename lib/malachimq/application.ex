@@ -26,7 +26,9 @@ defmodule MalachiMQ.Application do
 
     children = [
       {Registry, keys: :unique, name: MalachiMQ.QueueRegistry, partitions: System.schedulers_online()},
+      {Registry, keys: :unique, name: MalachiMQ.ChannelRegistry},
       {DynamicSupervisor, name: MalachiMQ.QueueSupervisor, strategy: :one_for_one, max_children: 100_000},
+      {DynamicSupervisor, name: MalachiMQ.ChannelSupervisor, strategy: :one_for_one, max_children: 100_000},
       {Task.Supervisor, name: MalachiMQ.TaskSupervisor, max_children: 10_000},
       MalachiMQ.PartitionManager,
       MalachiMQ.QueueConfig,

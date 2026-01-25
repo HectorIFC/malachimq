@@ -26,7 +26,8 @@ defmodule MalachiMQ.ConnectionRegistry do
   @doc """
   Update connection type (producer or consumer) and associated queue.
   """
-  def set_connection_type(pid, type, queue_name \\ nil) when type in [:producer, :consumer] do
+  def set_connection_type(pid, type, queue_name \\ nil)
+      when type in [:producer, :consumer, :channel_publisher, :channel_subscriber] do
     case :ets.lookup(@table, pid) do
       [{^pid, socket, transport, connected_at, ip, _old_type, _old_queue}] ->
         :ets.insert(@table, {pid, socket, transport, connected_at, ip, type, queue_name})
