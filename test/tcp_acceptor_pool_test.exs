@@ -60,7 +60,7 @@ defmodule MalachiMQ.TCPAcceptorPoolTest do
       case Supervisor.which_children(MalachiMQ.TCPAcceptorPool) do
         children when is_list(children) ->
           # Should have multiple acceptor children
-          assert length(children) > 0
+          assert children != []
 
         _ ->
           :ok

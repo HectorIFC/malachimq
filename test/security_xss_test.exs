@@ -80,7 +80,7 @@ defmodule MalachiMQ.Security.XSSTest do
         "form-action 'self'"
       ]
 
-      assert length(recommended_csp) > 0
+      assert recommended_csp != []
     end
   end
 end

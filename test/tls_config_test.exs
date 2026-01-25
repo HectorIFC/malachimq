@@ -51,7 +51,7 @@ defmodule MalachiMQ.TLSConfigTest do
         "ECDHE-RSA-AES128-GCM-SHA256"
       ]
 
-      assert length(strong_ciphers) > 0
+      assert strong_ciphers != []
       assert Enum.all?(strong_ciphers, &is_binary/1)
     end
   end

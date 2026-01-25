@@ -85,7 +85,7 @@ defmodule MalachiMQ.IntegrationTest do
 
       # Verify multiple consumers worked
       unique_consumers = Enum.uniq(consumers_that_worked) |> Enum.reject(&is_nil/1)
-      assert length(unique_consumers) >= 1
+      assert unique_consumers != []
     end
 
     test "metrics are tracked correctly" do

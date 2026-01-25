@@ -192,7 +192,7 @@ defmodule MalachiMQ.MetricsTest do
 
       history = MalachiMQ.Metrics.get_history(60)
       assert is_list(history)
-      assert length(history) > 0
+      assert history != []
 
       Application.delete_env(:malachimq, :metrics_snapshot_interval_ms)
     end

@@ -166,9 +166,9 @@ defmodule MalachiMQ.ConnectionRegistryTest do
       producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue_name)
 
       assert is_list(producers)
-      assert length(producers) >= 1
+      assert producers != []
 
-      if length(producers) > 0 do
+      if producers != [] do
         producer = hd(producers)
         assert Map.has_key?(producer, :pid)
         assert Map.has_key?(producer, :ip)
@@ -222,7 +222,7 @@ defmodule MalachiMQ.ConnectionRegistryTest do
 
       producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue(queue_name)
 
-      assert length(producers) >= 1
+      assert producers != []
       assert Enum.all?(producers, fn p -> String.contains?(p.pid, inspect(producer_pid)) end)
     end
   end
@@ -244,9 +244,9 @@ defmodule MalachiMQ.ConnectionRegistryTest do
       consumers = MalachiMQ.ConnectionRegistry.list_consumers_by_queue(queue_name)
 
       assert is_list(consumers)
-      assert length(consumers) >= 1
+      assert consumers != []
 
-      if length(consumers) > 0 do
+      if consumers != [] do
         consumer = hd(consumers)
         assert Map.has_key?(consumer, :pid)
         assert Map.has_key?(consumer, :ip)
@@ -465,7 +465,7 @@ defmodule MalachiMQ.ConnectionRegistryTest do
 
       producers = MalachiMQ.ConnectionRegistry.list_producers_by_queue("test")
 
-      if length(producers) > 0 do
+      if producers != [] do
         producer = hd(producers)
         # IP should be formatted as string
         assert is_binary(producer.ip)
