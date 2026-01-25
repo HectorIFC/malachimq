@@ -176,6 +176,9 @@ jobs:
           echo "MINOR=$MINOR" >> $GITHUB_OUTPUT
           echo "MAJOR_MINOR=$MAJOR.$MINOR" >> $GITHUB_OUTPUT
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -189,6 +192,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/malachimq:${{ needs.release.outputs.new_version }}
@@ -205,3 +209,4 @@ jobs:
             org.opencontainers.image.licenses=MIT
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/malachimq:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/malachimq:buildcache,mode=max
+          provenance: false
