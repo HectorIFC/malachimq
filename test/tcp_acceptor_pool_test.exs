@@ -28,7 +28,7 @@ defmodule MalachiMQ.TCPAcceptorPoolTest do
     end
 
     test "reads tcp_buffer_size from config" do
-      buffer_size = Application.get_env(:malachimq, :tcp_buffer_size, 32768)
+      buffer_size = Application.get_env(:malachimq, :tcp_buffer_size, 32_768)
       assert is_integer(buffer_size)
       assert buffer_size > 0
     end

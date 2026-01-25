@@ -22,9 +22,7 @@ defmodule MalachiMQ.QueueConfig do
     max_retries = Keyword.get(opts, :max_retries, 3)
     dlq_enabled = Keyword.get(opts, :dlq_enabled, true)
 
-    unless delivery_mode in [:at_least_once, :at_most_once] do
-      {:error, :invalid_delivery_mode}
-    else
+    if delivery_mode in [:at_least_once, :at_most_once] do
       config = %{
         queue_name: queue_name,
         delivery_mode: delivery_mode,
@@ -42,6 +40,8 @@ defmodule MalachiMQ.QueueConfig do
         [{^queue_name, _existing}] ->
           {:error, :queue_already_exists}
       end
+    else
+      {:error, :invalid_delivery_mode}
     end
   end
 
@@ -85,7 +85,11 @@ defmodule MalachiMQ.QueueConfig do
         {:error, :queue_not_found}
 
       [{^queue_name, _config}] ->
-        unless force do
+        if force do
+          :ets.delete(@config_table, queue_name)
+          Logger.info(I18n.t(:queue_deleted, queue: queue_name))
+          :ok
+        else
           stats = MalachiMQ.Queue.get_stats(queue_name)
 
           cond do
@@ -100,10 +104,6 @@ defmodule MalachiMQ.QueueConfig do
               Logger.info(I18n.t(:queue_deleted, queue: queue_name))
               :ok
           end
-        else
-          :ets.delete(@config_table, queue_name)
-          Logger.info(I18n.t(:queue_deleted, queue: queue_name))
-          :ok
         end
     end
   end

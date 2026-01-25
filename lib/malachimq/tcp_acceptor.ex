@@ -28,7 +28,7 @@ defmodule MalachiMQ.TCPAcceptor do
 
   @impl true
   def handle_info(:accept, %{socket: socket, idle_count: idle_count, transport: transport} = state) do
-    timeout = min(100 + idle_count * 50, 30000)
+    timeout = min(100 + idle_count * 50, 30_000)
 
     accept_result =
       case transport do
@@ -114,30 +114,42 @@ defmodule MalachiMQ.TCPAcceptor do
 
     case recv_data(socket, transport, 0, recv_timeout) do
       {:ok, data} ->
-        case Jason.decode(data) do
-          {:ok, %{"action" => "auth", "username" => username, "password" => password}} ->
-            case MalachiMQ.Auth.authenticate(username, password) do
-              {:ok, token} ->
-                case MalachiMQ.Auth.validate_token(token) do
-                  {:ok, session} ->
-                    response = Jason.encode!(%{"s" => "ok", "token" => token})
-                    send_data(socket, response <> "\n", transport)
-                    {:ok, session}
-
-                  {:error, _} ->
-                    {:error, :invalid_token}
-                end
-
-              {:error, _reason} ->
-                {:error, :invalid_credentials}
-            end
-
-          _ ->
-            {:error, :auth_required}
-        end
+        process_auth_data(data, socket, transport)
 
       {:error, _} ->
         {:error, :connection_error}
+    end
+  end
+
+  defp process_auth_data(data, socket, transport) do
+    case Jason.decode(data) do
+      {:ok, %{"action" => "auth", "username" => username, "password" => password}} ->
+        validate_and_authenticate(username, password, socket, transport)
+
+      _ ->
+        {:error, :auth_required}
+    end
+  end
+
+  defp validate_and_authenticate(username, password, socket, transport) do
+    case MalachiMQ.Auth.authenticate(username, password) do
+      {:ok, token} ->
+        validate_token_and_respond(token, socket, transport)
+
+      {:error, _reason} ->
+        {:error, :invalid_credentials}
+    end
+  end
+
+  defp validate_token_and_respond(token, socket, transport) do
+    case MalachiMQ.Auth.validate_token(token) do
+      {:ok, session} ->
+        response = Jason.encode!(%{"s" => "ok", "token" => token})
+        send_data(socket, response <> "\n", transport)
+        {:ok, session}
+
+      {:error, _} ->
+        {:error, :invalid_token}
     end
   end
 

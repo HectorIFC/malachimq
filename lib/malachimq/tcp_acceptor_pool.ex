@@ -13,7 +13,7 @@ defmodule MalachiMQ.TCPAcceptorPool do
 
   @impl true
   def init(port) do
-    buffer_size = Application.get_env(:malachimq, :tcp_buffer_size, 32768)
+    buffer_size = Application.get_env(:malachimq, :tcp_buffer_size, 32_768)
     backlog = Application.get_env(:malachimq, :tcp_backlog, 4096)
     send_timeout = Application.get_env(:malachimq, :tcp_send_timeout, 30_000)
     enable_tls = Application.get_env(:malachimq, :enable_tls, false)

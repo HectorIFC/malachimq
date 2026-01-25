@@ -34,23 +34,19 @@ defmodule MalachiMQ.SocketHelper do
   Returns :ok on success or {:error, reason} on failure.
   """
   def socket_close(socket, :gen_tcp) do
-    try do
-      :gen_tcp.close(socket)
-    rescue
-      _ -> {:error, :invalid_socket}
-    catch
-      _, _ -> {:error, :invalid_socket}
-    end
+    :gen_tcp.close(socket)
+  rescue
+    _ -> {:error, :invalid_socket}
+  catch
+    _, _ -> {:error, :invalid_socket}
   end
 
   def socket_close(socket, :ssl) do
-    try do
-      :ssl.close(socket)
-    rescue
-      _ -> {:error, :invalid_socket}
-    catch
-      _, _ -> {:error, :invalid_socket}
-    end
+    :ssl.close(socket)
+  rescue
+    _ -> {:error, :invalid_socket}
+  catch
+    _, _ -> {:error, :invalid_socket}
   end
 
   @doc """

@@ -204,7 +204,6 @@ client.on('data', (data) => {
   
   if (response.token) {
     // Publish to queue
-    // Publish to queue
     client.write(JSON.stringify({
       action: 'publish',
       queue_name: 'my-queue',
