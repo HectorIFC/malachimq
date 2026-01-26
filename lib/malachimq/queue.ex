@@ -7,7 +7,7 @@ defmodule MalachiMQ.Queue do
   require Logger
 
   @ets_opts [
-    :ordered_set,
+    :bag,
     :public,
     :named_table,
     read_concurrency: true,
@@ -42,30 +42,14 @@ defmodule MalachiMQ.Queue do
       queue: queue_name
     }
 
-    consumers_table = consumers_name({name, partition})
-
-    case dispatch_from_ets(consumers_table, message, queue_name) do
-      :dispatched ->
-        :ok
-
-      :no_consumers ->
-        buffer_table = buffer_name({name, partition})
-        :ets.insert(buffer_table, {message_id, message})
-        :ok
-    end
+    GenServer.call(via_tuple({name, partition}), {:enqueue, message})
   end
 
   def subscribe(queue_name, consumer_pid) do
     {name, partition} = MalachiMQ.PartitionManager.get_partition(queue_name)
     ensure_started({name, partition})
 
-    consumers_table = consumers_name({name, partition})
-    counter = :atomics.new(1, signed: false)
-    :atomics.put(counter, 1, 0)
-
-    :ets.insert(consumers_table, {consumer_pid, counter, System.monotonic_time()})
-
-    GenServer.cast(via_tuple({name, partition}), {:new_consumer, consumer_pid})
+    GenServer.cast(via_tuple({name, partition}), {:subscribe, consumer_pid})
   end
 
   def get_stats(queue_name) do
@@ -145,25 +129,48 @@ defmodule MalachiMQ.Queue do
     message_counter = :atomics.new(1, signed: false)
     :atomics.put(message_counter, 1, 0)
 
+    consumer_index_counter = :atomics.new(1, signed: false)
+    :atomics.put(consumer_index_counter, 1, 0)
+
     state = %{
       name: name,
       partition: partition,
       consumers_table: consumers_table,
       buffer_table: buffer_table,
       producers_table: producers_table,
-      message_counter: message_counter
+      message_counter: message_counter,
+      consumer_index_counter: consumer_index_counter,
+      consumers_list: [],
+      consumers_tuple: nil
     }
 
     {:ok, state}
   end
 
   @impl true
-  def handle_cast({:new_consumer, consumer_pid}, state) do
+  def handle_cast({:subscribe, consumer_pid}, state) do
     Process.monitor(consumer_pid)
+
+    counter = :atomics.new(1, signed: false)
+    :atomics.put(counter, 1, 0)
+
+    :ets.insert(state.consumers_table, {consumer_pid, counter, System.monotonic_time()})
+
+    new_consumers_list = state.consumers_list ++ [consumer_pid]
+
+    # Optimize: use tuple for > 100 consumers (O(1) access vs O(n))
+    new_consumers_tuple =
+      if length(new_consumers_list) > 100 do
+        List.to_tuple(new_consumers_list)
+      else
+        nil
+      end
+
+    new_state = %{state | consumers_list: new_consumers_list, consumers_tuple: new_consumers_tuple}
 
     flush_buffer(consumer_pid, state.buffer_table)
 
-    {:noreply, state}
+    {:noreply, new_state}
   end
 
   @impl true
@@ -216,7 +223,7 @@ defmodule MalachiMQ.Queue do
       :ets.delete(state.consumers_table, consumer_pid)
     end)
 
-    {:reply, {:ok, count}, state}
+    {:reply, {:ok, count}, %{state | consumers_list: [], consumers_tuple: nil}}
   end
 
   @impl true
@@ -240,10 +247,112 @@ defmodule MalachiMQ.Queue do
       [{^consumer_pid, _counter, _ts}] ->
         Process.exit(consumer_pid, :kill)
         :ets.delete(state.consumers_table, consumer_pid)
-        {:reply, :ok, state}
+        new_consumers_list = List.delete(state.consumers_list, consumer_pid)
+
+        # Rebuild tuple if needed
+        new_consumers_tuple =
+          if length(new_consumers_list) > 100 do
+            List.to_tuple(new_consumers_list)
+          else
+            nil
+          end
+
+        {:reply, :ok, %{state | consumers_list: new_consumers_list, consumers_tuple: new_consumers_tuple}}
 
       [] ->
         {:reply, {:error, :not_found}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:enqueue, message}, _from, state) do
+    case state.consumers_list do
+      [] ->
+        # Buffer the message
+        :ets.insert(state.buffer_table, {message.id, message})
+        {:reply, :ok, state}
+
+      consumers ->
+        # Get next consumer in round-robin fashion
+        current_index = :atomics.get(state.consumer_index_counter, 1)
+
+        # Use tuple for O(1) access when available, otherwise list
+        consumer_pid =
+          if state.consumers_tuple do
+            num = tuple_size(state.consumers_tuple)
+            elem(state.consumers_tuple, rem(current_index, num))
+          else
+            num = length(consumers)
+            Enum.at(consumers, rem(current_index, num))
+          end
+
+        # Increment for next message
+        :atomics.add(state.consumer_index_counter, 1, 1)
+
+        config = MalachiMQ.QueueConfig.get_config(message.queue)
+
+        # Only track message for at_least_once delivery mode
+        if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
+          MalachiMQ.AckManager.track_message(
+            message.id,
+            message.queue,
+            consumer_pid,
+            message
+          )
+        end
+
+        send(consumer_pid, {:queue_message, message})
+
+        case :ets.lookup(state.consumers_table, consumer_pid) do
+          [{^consumer_pid, counter, _ts}] ->
+            :atomics.add(counter, 1, 1)
+
+          _ ->
+            :ok
+        end
+
+        {:reply, :ok, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:dispatch_message, message}, _from, state) do
+    case state.consumers_list do
+      [] ->
+        {:reply, :no_consumers, state}
+
+      consumers ->
+        # Get next consumer in round-robin fashion
+        current_index = :atomics.get(state.consumer_index_counter, 1)
+        consumer_index = rem(current_index, length(consumers))
+        consumer_pid = Enum.at(consumers, consumer_index)
+
+        # Increment for next message
+        :atomics.add(state.consumer_index_counter, 1, 1)
+
+        config = MalachiMQ.QueueConfig.get_config(message.queue)
+
+        # Only track message for at_least_once delivery mode
+        if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
+          MalachiMQ.AckManager.track_message(
+            message.id,
+            message.queue,
+            consumer_pid,
+            message
+          )
+        end
+
+        send(consumer_pid, {:queue_message, message})
+
+        case :ets.lookup(state.consumers_table, consumer_pid) do
+          [{^consumer_pid, counter, _ts}] ->
+            :atomics.add(counter, 1, 1)
+
+          _ ->
+            :ok
+        end
+
+        {:reply, :dispatched, state}
     end
   end
 
@@ -253,7 +362,18 @@ defmodule MalachiMQ.Queue do
     :ets.delete(state.consumers_table, pid)
     # Remove from producers table
     :ets.delete(state.producers_table, pid)
-    {:noreply, state}
+    # Remove from consumers list
+    new_consumers_list = List.delete(state.consumers_list, pid)
+
+    # Rebuild tuple if needed
+    new_consumers_tuple =
+      if length(new_consumers_list) > 100 do
+        List.to_tuple(new_consumers_list)
+      else
+        nil
+      end
+
+    {:noreply, %{state | consumers_list: new_consumers_list, consumers_tuple: new_consumers_tuple}}
   end
 
   defp via_tuple({name, partition}) do
@@ -277,40 +397,6 @@ defmodule MalachiMQ.Queue do
 
       _pid ->
         :ok
-    end
-  end
-
-  defp dispatch_from_ets(consumers_table, message, queue_name) do
-    case :ets.first(consumers_table) do
-      :"$end_of_table" ->
-        :no_consumers
-
-      consumer_pid ->
-        config = MalachiMQ.QueueConfig.get_config(queue_name)
-
-        # Only track message for at_least_once delivery mode
-        if config.delivery_mode == :at_least_once and Process.whereis(MalachiMQ.AckManager) do
-          MalachiMQ.AckManager.track_message(
-            message.id,
-            message.queue,
-            consumer_pid,
-            message
-          )
-        end
-
-        send(consumer_pid, {:queue_message, message})
-
-        case :ets.lookup(consumers_table, consumer_pid) do
-          [{^consumer_pid, counter, _ts}] ->
-            :atomics.add(counter, 1, 1)
-            :ets.delete(consumers_table, consumer_pid)
-            :ets.insert(consumers_table, {consumer_pid, counter, System.monotonic_time()})
-
-          _ ->
-            :ok
-        end
-
-        :dispatched
     end
   end
 
