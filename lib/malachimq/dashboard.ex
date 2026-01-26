@@ -581,8 +581,10 @@ defmodule MalachiMQ.Dashboard do
             const subscriberList = renderConnectionList(subscribers, 'subscriber', c.channel);
             
             // Calculate delivery and discard rates
-            const deliveryRate = c.published > 0 ? ((c.delivered / c.published) * 100).toFixed(2) : '0.00';
-            const discardRate = c.published > 0 ? ((c.dropped / c.published) * 100).toFixed(2) : '0.00';
+            // Expected deliveries = published * subscribers (each message should go to all subscribers)
+            const expectedDeliveries = c.published * (c.subscribers || 0);
+            const deliveryRate = expectedDeliveries > 0 ? Math.min(((c.delivered / expectedDeliveries) * 100), 100).toFixed(2) : '0.00';
+            const discardRate = c.published > 0 ? Math.min(((c.dropped / c.published) * 100), 100).toFixed(2) : '0.00';
 
             return `
               <div class="channel-card">
