@@ -98,6 +98,28 @@ defmodule MalachiMQ.ConnectionRegistry do
   end
 
   @doc """
+  Get list of subscribers with their IPs for a specific channel.
+  """
+  def list_subscribers_by_channel(channel_name) do
+    :ets.tab2list(@table)
+    |> Enum.filter(fn
+      {_pid, _socket, _transport, _connected_at, _ip, type, channel} ->
+        type == :channel_subscriber and channel == channel_name
+
+      _ ->
+        false
+    end)
+    |> Enum.map(fn {pid, _socket, _transport, connected_at, ip, _type, _channel} ->
+      %{
+        pid: inspect(pid),
+        ip: ip,
+        connected_at: connected_at
+      }
+    end)
+    |> Enum.sort_by(& &1.connected_at, :desc)
+  end
+
+  @doc """
   Get list of producers with their IPs.
   """
   def list_producers do

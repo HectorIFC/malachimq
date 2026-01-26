@@ -103,8 +103,21 @@ defmodule MalachiMQ.Dashboard do
         })
       end)
 
+    channel_metrics = MalachiMQ.Metrics.get_all_channel_metrics()
+
+    # Enrich each channel with subscriber IPs
+    enriched_channels =
+      Enum.map(channel_metrics, fn channel ->
+        subscribers = MalachiMQ.ConnectionRegistry.list_subscribers_by_channel(channel.channel)
+
+        Map.merge(channel, %{
+          subscriber_ips: subscribers
+        })
+      end)
+
     metrics = %{
       queues: enriched_queues,
+      channels: enriched_channels,
       system: MalachiMQ.Metrics.get_system_metrics()
     }
 
@@ -154,8 +167,21 @@ defmodule MalachiMQ.Dashboard do
         })
       end)
 
+    channel_metrics = MalachiMQ.Metrics.get_all_channel_metrics()
+
+    # Enrich each channel with subscriber IPs
+    enriched_channels =
+      Enum.map(channel_metrics, fn channel ->
+        subscribers = MalachiMQ.ConnectionRegistry.list_subscribers_by_channel(channel.channel)
+
+        Map.merge(channel, %{
+          subscriber_ips: subscribers
+        })
+      end)
+
     metrics = %{
       queues: enriched_queues,
+      channels: enriched_channels,
       system: MalachiMQ.Metrics.get_system_metrics()
     }
 
@@ -284,6 +310,14 @@ defmodule MalachiMQ.Dashboard do
           padding: 15px;
           margin-bottom: 15px;
         }
+        .channel-card {
+          background: #1a1f3a;
+          border: 1px solid #2a3f5f;
+          border-left: 4px solid #a855f7;
+          border-radius: 8px;
+          padding: 15px;
+          margin-bottom: 15px;
+        }
         .queue-header {
           display: flex;
           justify-content: space-between;
@@ -354,6 +388,11 @@ defmodule MalachiMQ.Dashboard do
         <h2>Queues</h2>
         <div id="queues">Loading...</div>
       </div>
+
+      <div class="card">
+        <h2>Channels</h2>
+        <div id="channels">Loading...</div>
+      </div>
       <script>
         // HTML escape function to prevent XSS attacks
         function escapeHtml(unsafe) {
@@ -387,13 +426,16 @@ defmodule MalachiMQ.Dashboard do
             queuePaginationState[queueName] = {
               producerPage: 1,
               consumerPage: 1,
+              subscriberPage: 1,
               perPage: 10
             };
           }
 
           const page = type === 'producer' 
             ? queuePaginationState[queueName].producerPage 
-            : queuePaginationState[queueName].consumerPage;
+            : type === 'consumer'
+            ? queuePaginationState[queueName].consumerPage
+            : queuePaginationState[queueName].subscriberPage;
           const perPage = queuePaginationState[queueName].perPage;
           const start = (page - 1) * perPage;
           const end = start + perPage;
@@ -403,7 +445,7 @@ defmodule MalachiMQ.Dashboard do
           if (connections.length === 0) {
             return `
               <div class="connection-section">
-                <h3>📤 ${type === 'producer' ? 'Producers' : 'Consumers'} <span class="connection-count">0</span></h3>
+                <h3>${type === 'producer' ? '📤 Producers' : type === 'consumer' ? '📥 Consumers' : '📡 Subscribers'} <span class="connection-count">0</span></h3>
                 <div class="empty-state" style="padding: 15px; font-size: 0.85em;">No ${type}s</div>
               </div>
             `;
@@ -429,7 +471,7 @@ defmodule MalachiMQ.Dashboard do
 
           return `
             <div class="connection-section">
-              <h3>${type === 'producer' ? '📤 Producers' : '📥 Consumers'} <span class="connection-count">${connections.length}</span></h3>
+              <h3>${type === 'producer' ? '📤 Producers' : type === 'consumer' ? '📥 Consumers' : '📡 Subscribers'} <span class="connection-count">${connections.length}</span></h3>
               <div class="connection-list">
                 ${itemsHtml}
               </div>
@@ -443,19 +485,24 @@ defmodule MalachiMQ.Dashboard do
 
           const currentPage = type === 'producer' 
             ? queuePaginationState[queueName].producerPage 
-            : queuePaginationState[queueName].consumerPage;
+            : type === 'consumer'
+            ? queuePaginationState[queueName].consumerPage
+            : queuePaginationState[queueName].subscriberPage;
           const newPage = currentPage + direction;
 
           if (newPage >= 1) {
             if (type === 'producer') {
               queuePaginationState[queueName].producerPage = newPage;
-            } else {
+            } else if (type === 'consumer') {
               queuePaginationState[queueName].consumerPage = newPage;
+            } else {
+              queuePaginationState[queueName].subscriberPage = newPage;
             }
             // Force re-render by triggering update
             const lastData = window.lastMetricsData;
             if (lastData) {
               renderQueues(lastData.queues);
+              renderChannels(lastData.channels);
             }
           }
         }
@@ -523,6 +570,61 @@ defmodule MalachiMQ.Dashboard do
           document.getElementById('queues').innerHTML = queuesHtml;
         }
 
+        function renderChannels(channels) {
+          if (!channels || channels.length === 0) {
+            document.getElementById('channels').innerHTML = '<div class="empty-state">No channels</div>';
+            return;
+          }
+
+          const channelsHtml = channels.map(c => {
+            const subscribers = c.subscriber_ips || [];
+            const subscriberList = renderConnectionList(subscribers, 'subscriber', c.channel);
+            
+            // Calculate delivery and discard rates
+            // Expected deliveries = published * subscribers (each message should go to all subscribers)
+            const expectedDeliveries = c.published * (c.subscribers || 0);
+            const deliveryRate = expectedDeliveries > 0 ? Math.min(((c.delivered / expectedDeliveries) * 100), 100).toFixed(2) : '0.00';
+            const discardRate = c.published > 0 ? Math.min(((c.dropped / c.published) * 100), 100).toFixed(2) : '0.00';
+
+            return `
+              <div class="channel-card">
+                <div class="queue-header">
+                  <div class="queue-name">${escapeHtml(c.channel)}</div>
+                </div>
+                
+                <div class="queue-metrics">
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Subscribers:</span> <span style="color: #00ff88;">${c.subscribers || 0}</span>
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #888;">Published:</span> ${c.published || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #00ff88;">✓ Delivered:</span> ${c.delivered || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #ff6b6b;">✗ Dropped:</span> ${c.dropped || 0}
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #a855f7;">📊 Delivery Rate:</span> ${deliveryRate}%
+                  </div>
+                  <div class="queue-metric-item">
+                    <span style="color: #ff4757;">📉 Discard Rate:</span> ${discardRate}%
+                  </div>
+                </div>
+
+                ${subscribers.length > 0 ? `
+                  <div style="margin-top: 12px;">
+                    ${subscriberList}
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('');
+
+          document.getElementById('channels').innerHTML = channelsHtml;
+        }
+
         const source = new EventSource('/stream');
         source.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -532,6 +634,7 @@ defmodule MalachiMQ.Dashboard do
           document.getElementById('memory').textContent = data.system.memory.total_mb.toFixed(2) + ' MB';
 
           renderQueues(data.queues);
+          renderChannels(data.channels || []);
         };
       </script>
     </body>
