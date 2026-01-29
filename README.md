@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.jpeg" alt="MalachiMQ Logo" width="200"/>
+</p>
+
 # MalachiMQ
 
 High-performance message queue system built with Elixir/OTP.
@@ -5,6 +9,7 @@ High-performance message queue system built with Elixir/OTP.
 [![CI](https://github.com/HectorIFC/malachimq/actions/workflows/ci.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/ci.yml)
 [![Release](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml/badge.svg)](https://github.com/HectorIFC/malachimq/actions/workflows/release.yml)
 [![Docker Image](https://img.shields.io/docker/v/hectorcardoso/malachimq?label=Docker%20Hub)](https://hub.docker.com/r/hectorcardoso/malachimq)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hectorcardoso/malachimq.svg)](https://hub.docker.com/r/hectorcardoso/malachimq)
 [![Sponsor](https://img.shields.io/badge/sponsor-❤-ff69b4)](https://github.com/sponsors/HectorIFC)
 
 ## 💖 Sponsors

@@ -92,6 +92,12 @@ body {
     font-size: 1.5rem;
 }
 
+.logo-img {
+    height: 40px;
+    width: 40px;
+    object-fit: contain;
+}
+
 .logo-icon {
     font-size: 1.8rem;
 }
@@ -208,6 +214,13 @@ body {
     align-items: center;
 }
 
+.badges-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
 .badge {
     display: inline-block;
     padding: 6px 16px;
@@ -216,7 +229,11 @@ body {
     border-radius: var(--radius-full);
     font-size: 0.875rem;
     font-weight: 600;
-    margin-bottom: 24px;
+}
+
+.badge-img {
+    height: 20px;
+    vertical-align: middle;
 }
 
 .hero h1 {
